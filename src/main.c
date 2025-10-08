@@ -1,6 +1,15 @@
+#include <arpa/inet.h>
+#include <netinet/ip_icmp.h>
 #include <stdio.h>
+#include <sys/socket.h>
 
 int main(void) {
-	printf("Hello, World\n");
-	return 0;
+
+  struct icmphdr packet = {
+
+  };
+
+  int fd = socket(AF_INET, SOCK_RAW, IPPROTO_ICMP);
+
+  return 0;
 }
