@@ -1,7 +1,9 @@
 NAME = ft_ping
 
 SRC_DIR = src/
-SRC_FILES = main.c
+SRC_FILES =				\
+				main.c	\
+				packet.c
 
 SRC = $(addprefix $(SRC_DIR), $(SRC_FILES))
 
@@ -23,6 +25,9 @@ $(NAME): $(OBJ)
 $(OBJ_DIR)%.o : $(SRC_DIR)%.c
 	mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) $(INC) -c $< -o $@
+
+init: 
+	bear -- make -B -C.
 
 clean:
 	rm -rf $(OBJ_DIR)
