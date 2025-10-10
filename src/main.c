@@ -1,4 +1,5 @@
 #include <arpa/inet.h>
+#include <errno.h>
 #include <netinet/in.h>
 #include <netinet/ip_icmp.h>
 #include <stdbool.h>
@@ -29,6 +30,59 @@ int parse_av(int ac, char** av, t_param* buff_p)
     return 0;
 }
 
+void format_rep(struct icmphdr* icmp_rep, struct sockaddr_in* addr, size_t len)
+{
+    char buff_addr[128];
+    memset(buff_addr, 0, sizeof(buff_addr));
+    inet_ntop(AF_INET, (void*)addr, buff_addr, sizeof(buff_addr));
+    printf("%li bytes from %s: icmp_seq=%i ttl=%i time=%f ms\n",
+           len,
+           buff_addr,
+           icmp_rep->un.echo.sequence,
+           0,
+           0.0f);
+}
+
+void loop(int fd, struct sockaddr_in* addr)
+{
+    struct icmphdr packet;
+    ssize_t        seq = 0;
+    u_int8_t       read_buff[64];
+
+    while (true)
+    {
+        sleep(1);
+        memset(&packet, 0, sizeof(packet));
+        icmp_pack(&packet, seq++);
+        packet.checksum = checksum((u_int16_t*)&packet, sizeof(packet));
+
+        if (sendto(fd, &packet, sizeof(packet), 0, (struct sockaddr*)addr, sizeof(*addr)) < 0)
+        {
+            perror("sendto");
+        }
+        memset(read_buff, 0, sizeof(read_buff));
+
+        int nb = 0;
+        nb     = recvfrom(fd, read_buff, sizeof(read_buff), 0, NULL, NULL);
+        if (nb < 0)
+        {
+            perror("recv");
+        }
+
+        size_t          len;
+        struct icmphdr* rep_packet    = icmp_unpack(read_buff, nb, &len);
+        u_int16_t       recv_checksum = rep_packet->checksum;
+        rep_packet->checksum          = 0;
+
+        if (checksum((u_int16_t*)rep_packet, len) != recv_checksum)
+        {
+            printf("Packet integrity KO");
+        }
+
+        format_rep(rep_packet, addr, nb);
+    }
+}
+
 int main(int ac, char** av)
 {
 
@@ -41,10 +95,6 @@ int main(int ac, char** av)
         printf("root privilege is required\n");
         return 1;
     }
-
-    struct icmphdr packet;
-    icmp_pack(&packet);
-    packet.checksum = checksum((u_int16_t*)&packet, sizeof(packet));
 
     int fd;
     fd = socket(AF_INET, SOCK_RAW, IPPROTO_ICMP);
@@ -65,19 +115,6 @@ int main(int ac, char** av)
     addr.sin_port   = 0;
     inet_pton(AF_INET, params.addr, &addr.sin_addr);
 
-    int n = sendto(fd, &packet, sizeof(packet), 0, (struct sockaddr*)&addr, sizeof(addr));
-    printf("n: %d\n", n);
-
-    u_int8_t buff[1000];
-    memset(buff, 0, sizeof(buff));
-
-    int nb = 0;
-    nb     = recvfrom(fd, buff, sizeof(buff), 0, NULL, NULL);
-    if (nb < 0)
-    {
-        perror("recv");
-    }
-
-    printf("buff:%i | %s", nb, buff);
+    loop(fd, &addr);
     return 0;
 }
