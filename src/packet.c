@@ -1,7 +1,10 @@
+#include "packet.h"
+
 #include <netinet/in.h>
 #include <netinet/ip.h>
 #include <netinet/ip_icmp.h>
 #include <stddef.h>
+#include <stdio.h>
 #include <sys/types.h>
 #include <unistd.h>
 
@@ -44,4 +47,23 @@ struct icmphdr* icmp_unpack(void* buff, size_t buff_len, size_t* len)
 
     *len = buff_len - ip_head->ihl * 4;
     return (struct icmphdr*)(buff + (ip_head->ihl * 4));
+}
+
+struct iphdr* ip_unpack(void* buff, size_t* len)
+{
+    struct iphdr* iphdr = (struct iphdr*)buff;
+    *len                = iphdr->ihl * 4;
+    return iphdr;
+}
+
+int verif_integrity(packet_t* packet)
+{
+    int icmp_save_check = packet->icmphdr->checksum;
+
+    packet->icmphdr->checksum = 0;
+    if (checksum((u_int16_t*)(packet->icmphdr), packet->icmp_len) != icmp_save_check)
+    {
+        return 0;
+    }
+    return 1;
 }
