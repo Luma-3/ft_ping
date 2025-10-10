@@ -1,6 +1,7 @@
 #include <arpa/inet.h>
-#include <errno.h>
+#include <bits/time.h>
 #include <netinet/in.h>
+#include <netinet/ip.h>
 #include <netinet/ip_icmp.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -8,9 +9,10 @@
 #include <string.h>
 #include <sys/socket.h>
 #include <sys/types.h>
+#include <time.h>
 #include <unistd.h>
 
-#include "ping.h"
+#include "packet.h"
 typedef struct s_param
 {
     bool  verbose;
@@ -30,56 +32,71 @@ int parse_av(int ac, char** av, t_param* buff_p)
     return 0;
 }
 
-void format_rep(struct icmphdr* icmp_rep, struct sockaddr_in* addr, size_t len)
+void format_rep(packet_t            packet,
+                struct sockaddr_in* addr,
+                struct timespec*    tsend,
+                struct timespec*    trecv)
 {
-    char buff_addr[128];
+    char buff_addr[INET_ADDRSTRLEN];
+
     memset(buff_addr, 0, sizeof(buff_addr));
-    inet_ntop(AF_INET, (void*)addr, buff_addr, sizeof(buff_addr));
-    printf("%li bytes from %s: icmp_seq=%i ttl=%i time=%f ms\n",
-           len,
+    inet_ntop(AF_INET, &(addr->sin_addr), buff_addr, INET_ADDRSTRLEN);
+
+    long   sec_diff  = trecv->tv_sec - tsend->tv_sec;
+    long   nsec_diff = trecv->tv_nsec - tsend->tv_nsec;
+    double rtt_time  = sec_diff * 1000 + nsec_diff / 1e6;
+    printf("%li bytes from %s: icmp_seq=%i ttl=%i time=%.3f ms\n",
+           packet.pack_len,
            buff_addr,
-           icmp_rep->un.echo.sequence,
-           0,
-           0.0f);
+           ntohs(packet.icmphdr->un.echo.sequence),
+           packet.iphdr->ttl,
+           rtt_time);
 }
 
 void loop(int fd, struct sockaddr_in* addr)
 {
-    struct icmphdr packet;
-    ssize_t        seq = 0;
-    u_int8_t       read_buff[64];
+    struct icmphdr  icmphdr;
+    ssize_t         seq = 0;
+    u_int8_t        read_buff[400];
+    ssize_t         nb_bytes = 0;
+    struct timespec tsend, trecv;
 
     while (true)
     {
         sleep(1);
-        memset(&packet, 0, sizeof(packet));
-        icmp_pack(&packet, seq++);
-        packet.checksum = checksum((u_int16_t*)&packet, sizeof(packet));
 
-        if (sendto(fd, &packet, sizeof(packet), 0, (struct sockaddr*)addr, sizeof(*addr)) < 0)
+        memset(&icmphdr, 0, sizeof(icmphdr));
+        icmp_pack(&icmphdr, seq++);
+        icmphdr.checksum = checksum((u_int16_t*)&icmphdr, sizeof(icmphdr));
+
+        memset(&tsend, 0, sizeof(tsend));
+        memset(&trecv, 0, sizeof(trecv));
+
+        clock_gettime(CLOCK_MONOTONIC, &tsend);
+        if (sendto(fd, &icmphdr, sizeof(icmphdr), 0, (struct sockaddr*)addr, sizeof(*addr)) < 0)
         {
             perror("sendto");
         }
         memset(read_buff, 0, sizeof(read_buff));
 
-        int nb = 0;
-        nb     = recvfrom(fd, read_buff, sizeof(read_buff), 0, NULL, NULL);
-        if (nb < 0)
+        nb_bytes = recvfrom(fd, read_buff, sizeof(read_buff), 0, NULL, NULL);
+        if (nb_bytes < 0)
         {
             perror("recv");
         }
+        clock_gettime(CLOCK_MONOTONIC, &trecv);
 
-        size_t          len;
-        struct icmphdr* rep_packet    = icmp_unpack(read_buff, nb, &len);
-        u_int16_t       recv_checksum = rep_packet->checksum;
-        rep_packet->checksum          = 0;
+        packet_t packet;
+        memset(&packet, 0, sizeof(packet));
+        packet.pack_len = nb_bytes;
 
-        if (checksum((u_int16_t*)rep_packet, len) != recv_checksum)
+        packet.icmphdr = icmp_unpack(read_buff, packet.pack_len, &packet.icmp_len);
+        packet.iphdr   = ip_unpack(read_buff, &packet.ip_len);
+        if (verif_integrity(&packet) != true)
         {
-            printf("Packet integrity KO");
+            printf("Packet Integrity KO");
         }
-
-        format_rep(rep_packet, addr, nb);
+        format_rep(packet, addr, &tsend, &trecv);
     }
 }
 
