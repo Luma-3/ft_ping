@@ -6,6 +6,8 @@
 #include <netinet/ip_icmp.h>
 #include <sys/types.h>
 
+#define PAYLOAD_SIZE 56
+
 typedef struct packet_s
 {
     struct iphdr*   iphdr;
@@ -13,7 +15,6 @@ typedef struct packet_s
     struct icmphdr* icmphdr;
     size_t          icmp_len;
     size_t          pack_len;
-
 } packet_t;
 
 u_int16_t checksum(u_int16_t* ptr, size_t len);

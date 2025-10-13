@@ -61,9 +61,8 @@ int verif_integrity(packet_t* packet)
     int icmp_save_check = packet->icmphdr->checksum;
 
     packet->icmphdr->checksum = 0;
-    if (checksum((u_int16_t*)(packet->icmphdr), packet->icmp_len) != icmp_save_check)
-    {
-        return 0;
-    }
-    return 1;
+    return (
+        checksum((u_int16_t*)(packet->icmphdr), packet->icmp_len) ==
+        icmp_save_check
+    );
 }
