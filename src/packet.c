@@ -5,12 +5,13 @@
 #include <netinet/ip_icmp.h>
 #include <stddef.h>
 #include <stdio.h>
+#include <string.h>
 #include <sys/types.h>
 #include <unistd.h>
 
 u_int16_t checksum(u_int16_t* ptr, size_t len)
 {
-    u_int32_t sum = 0;
+    unsigned int sum = 0;
 
     while (len > 1)
     {
@@ -32,13 +33,22 @@ u_int16_t checksum(u_int16_t* ptr, size_t len)
     return ((u_int16_t)~sum);
 }
 
-void icmp_pack(struct icmphdr* buff, ssize_t seq)
+void icmp_pack(ssize_t seq, u_int8_t* buff, char* data)
 {
-    buff->type             = ICMP_ECHO;
-    buff->code             = 0;
-    buff->checksum         = 0;
-    buff->un.echo.id       = htons(getpid() & 0xFFFF);
-    buff->un.echo.sequence = htons(seq);
+    struct icmphdr hdr;
+
+    hdr.type             = ICMP_ECHO;
+    hdr.code             = 0;
+    hdr.checksum         = 0;
+    hdr.un.echo.id       = htons(getpid() & 0xFFFF);
+    hdr.un.echo.sequence = htons(seq);
+
+    memcpy(buff, &hdr, sizeof(struct icmphdr));
+    memcpy(buff + sizeof(struct icmphdr), data, PAYLOAD_SIZE);
+    u_int16_t cs = htons(
+        checksum((u_int16_t*)buff, sizeof(struct icmphdr) + PAYLOAD_SIZE)
+    );
+    memcpy(buff + offsetof(struct icmphdr, checksum), &cs, sizeof(cs));
 }
 
 struct icmphdr* icmp_unpack(void* buff, size_t buff_len, size_t* len)
@@ -64,5 +74,13 @@ int verif_integrity(packet_t* packet)
     return (
         checksum((u_int16_t*)(packet->icmphdr), packet->icmp_len) ==
         icmp_save_check
+    );
+}
+
+int verif_its_me(packet_t* packet)
+{
+    return (
+        packet->icmphdr->un.echo.id == htons(getpid() & 0xFFFF) &&
+        packet->icmphdr->type == ICMP_ECHOREPLY
     );
 }

@@ -11,9 +11,9 @@ Vagrant.configure("2") do |config|
   config.ssh.forward_agent = true
 
   config.vm.provision "shell", inline: <<-SHELL
-    apt-get -y install rsync inetutils-ping
     apt-get update 
-    apt install -y make gcc
+    apt-get -y install rsync inetutils-ping
+    apt install -y make gcc valgrind
   SHELL
 
 end
