@@ -1,9 +1,9 @@
-#include "parsing.h"
-
 #include <getopt.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
+
+#include "ping.h"
 
 void usage()
 {

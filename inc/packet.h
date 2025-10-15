@@ -1,9 +1,9 @@
-#include <netinet/ip.h>
-#include <stddef.h>
 #ifndef _PACKET_H
 #define _PACKET_H 1
 
+#include <netinet/ip.h>
 #include <netinet/ip_icmp.h>
+#include <stddef.h>
 #include <sys/types.h>
 
 #define PAYLOAD_SIZE 56

@@ -1,5 +1,6 @@
 #include <arpa/inet.h>
 #include <bits/time.h>
+#include <math.h>
 #include <netdb.h>
 #include <netinet/in.h>
 #include <netinet/ip.h>
@@ -8,15 +9,44 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <time.h>
 #include <unistd.h>
 
+#include "ionet.h"
 #include "packet.h"
-#include "parsing.h"
 #include "ping.h"
+
+typedef struct stats_s
+{
+    size_t send;
+    size_t recv;
+    double min;
+    double max;
+    double avg;
+    double M2;
+    double stddev;
+} stats_t;
+
+void add_stat(stats_t* stats, bool recv, double elapsed_time)
+{
+    stats->send++;
+    stats->recv += recv;
+
+    if (!recv)
+        return;
+    stats->max = MAX(stats->max, elapsed_time);
+    stats->min = MIN(stats->min, elapsed_time);
+
+    double delta = elapsed_time - stats->avg;
+
+    stats->avg += delta / stats->recv;
+    stats->M2 += delta * (elapsed_time - stats->avg);
+    stats->stddev = sqrt(stats->M2 / (stats->recv - 1));
+}
 
 double elapsed_time(struct s_time* time)
 {
@@ -45,70 +75,26 @@ void print_header(char* param, struct in_addr* addr)
     );
 }
 
-enum recv_status
+void print_footer(stats_t* stats, struct in_addr* addr)
 {
-    CONTINUE,
-    BREAK,
-    OK
-};
+    printf(
+        "--- %s ping statistics ---\n"
+        "%li packets transmitted, %li packets received, %li%% packet loss\n",
+        inet_ntoa(*addr),
+        stats->send,
+        stats->recv,
+        ((stats->send - stats->recv) / stats->send * 100)
+    );
 
-void send_packet(
-    int fd, struct sockaddr_in* addr, ssize_t seq, struct s_time* time
-)
-{
-    uint8_t icmp_buff[sizeof(struct icmphdr) + PAYLOAD_SIZE];
-
-    memset(icmp_buff, 0, sizeof(icmp_buff));
-
-    memset(&time->tsend, 0, sizeof(time->tsend));
-    memset(&time->trecv, 0, sizeof(time->trecv));
-    clock_gettime(CLOCK_MONOTONIC, &time->tsend);
-
-    icmp_pack(seq, icmp_buff, (char*)&time->tsend);
-
-    if (sendto(
-            fd,
-            icmp_buff,
-            sizeof(icmp_buff),
-            0,
-            (struct sockaddr*)addr,
-            sizeof(*addr)
-        ) < 0)
-    {
-        perror("sendto");
-    }
-}
-
-enum recv_status recv_packet(int fd, struct s_time* time, packet_t* packet)
-{
-    u_int8_t read_buff[400];
-    ssize_t  nb_bytes = 0;
-
-    memset(read_buff, 0, sizeof(read_buff));
-
-    nb_bytes = recvfrom(fd, read_buff, sizeof(read_buff), 0, NULL, NULL);
-    if (nb_bytes < 0)
-    {
-        perror("recv");
-    }
-
-    memset(packet, 0, sizeof(*packet));
-    packet->pack_len = nb_bytes;
-
-    packet->icmphdr =
-        icmp_unpack(read_buff, packet->pack_len, &packet->icmp_len);
-    packet->iphdr = ip_unpack(read_buff, &packet->ip_len);
-
-    if (verif_its_me(packet) != true)
-    {
-        return CONTINUE;
-    }
-    clock_gettime(CLOCK_MONOTONIC, &time->tsend);
-    if (verif_integrity(packet) != true)
-    {
-        printf("Packet Integrity KO");
-    }
-    return OK;
+    if (stats->recv == 0)
+        return;
+    printf(
+        "round-trip min/avg/max/stddev = %.3f/%.3f/%.3f/%.3f ms\n",
+        stats->min,
+        stats->avg,
+        stats->max,
+        stats->stddev
+    );
 }
 
 void loop(int fd, struct sockaddr_in* addr)
@@ -118,8 +104,14 @@ void loop(int fd, struct sockaddr_in* addr)
     bool          recv_pack = true;
     packet_t      packet;
     double        elapsed;
+    uint8_t       buff[1024];
+    stats_t       stats;
 
-    while (true)
+    int i = 0;
+
+    memset(&stats, 0, sizeof(stats));
+    stats.min = __DBL_MAX__;
+    while (i++ < 6)
     {
         if (recv_pack == true)
         {
@@ -128,7 +120,7 @@ void loop(int fd, struct sockaddr_in* addr)
             recv_pack = false;
         }
 
-        enum recv_status ret = recv_packet(fd, &time, &packet);
+        enum recv_status ret = recv_packet(fd, &time, &packet, buff);
         if (ret == CONTINUE)
         {
             continue;
@@ -136,18 +128,21 @@ void loop(int fd, struct sockaddr_in* addr)
 
         elapsed = elapsed_time(&time);
         print_rep(packet, addr, elapsed);
+        add_stat(&stats, 1, elapsed);
         if (elapsed < 1000)
         {
             usleep((1000 - elapsed) * 1000);
         }
         recv_pack = true;
     }
+    print_footer(&stats, &addr->sin_addr);
 }
 
 int main(int ac, char** av)
 {
     t_param            params;
     struct sockaddr_in addr;
+    memset(&params, 0, sizeof(params));
     parse_arg(ac, av, &params);
 
     if (getuid() != 0)

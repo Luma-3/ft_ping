@@ -11,7 +11,7 @@
 
 u_int16_t checksum(u_int16_t* ptr, size_t len)
 {
-    unsigned int sum = 0;
+    int sum = 0;
 
     while (len > 1)
     {
@@ -35,20 +35,21 @@ u_int16_t checksum(u_int16_t* ptr, size_t len)
 
 void icmp_pack(ssize_t seq, u_int8_t* buff, char* data)
 {
-    struct icmphdr hdr;
+    (void)data;
+    struct icmphdr* hdr = (struct icmphdr*)buff;
+    char            data2[PAYLOAD_SIZE];
 
-    hdr.type             = ICMP_ECHO;
-    hdr.code             = 0;
-    hdr.checksum         = 0;
-    hdr.un.echo.id       = htons(getpid() & 0xFFFF);
-    hdr.un.echo.sequence = htons(seq);
+    memset(data2, 0, PAYLOAD_SIZE);
+    // memset(data2, 'A', PAYLOAD_SIZE - 1);;
+    hdr->type             = ICMP_ECHO;
+    hdr->code             = 0;
+    hdr->checksum         = 0;
+    hdr->un.echo.id       = htons(getpid() & 0xFFFF);
+    hdr->un.echo.sequence = htons(seq);
 
-    memcpy(buff, &hdr, sizeof(struct icmphdr));
-    memcpy(buff + sizeof(struct icmphdr), data, PAYLOAD_SIZE);
-    u_int16_t cs = htons(
-        checksum((u_int16_t*)buff, sizeof(struct icmphdr) + PAYLOAD_SIZE)
-    );
-    memcpy(buff + offsetof(struct icmphdr, checksum), &cs, sizeof(cs));
+    memcpy(buff + sizeof(struct icmphdr), data2, PAYLOAD_SIZE);
+    hdr->checksum =
+        checksum((u_int16_t*)buff, sizeof(struct icmphdr) + PAYLOAD_SIZE);
 }
 
 struct icmphdr* icmp_unpack(void* buff, size_t buff_len, size_t* len)

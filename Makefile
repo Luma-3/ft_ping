@@ -5,7 +5,8 @@ SRC_FILES =				\
 				main.c	\
 				packet.c	\
 				parsing.c	\
-				resolution.c
+				resolution.c	\
+				ionet.c \
 
 SRC = $(addprefix $(SRC_DIR), $(SRC_FILES))
 
@@ -22,12 +23,12 @@ CFLAGS = -Wall -Wextra -Werror -g3
 all: $(NAME)
 
 $(NAME): $(OBJ) 
-	$(CC) $(CFLAGS) $(INC) $^ -o $@ 
+	$(CC) $(CFLAGS) $(INC) $^ -o $@ -lm
 
 $(OBJ_DIR)%.o : $(SRC_DIR)%.c
 	mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) $(INC) -c $< -o $@
-
+	$(CC) $(CFLAGS) $(INC) -c $< -o $@ -lm
+ 
 init: 
 	bear -- make -B -C.
 
