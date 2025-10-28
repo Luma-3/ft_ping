@@ -80,8 +80,5 @@ int verif_integrity(packet_t* packet)
 
 int verif_its_me(packet_t* packet)
 {
-    return (
-        packet->icmphdr->un.echo.id == htons(getpid() & 0xFFFF) &&
-        packet->icmphdr->type == ICMP_ECHOREPLY
-    );
+    return (packet->icmphdr->un.echo.id == htons(getpid() & 0xFFFF));
 }

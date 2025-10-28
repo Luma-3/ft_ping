@@ -5,31 +5,22 @@
 #include <netinet/in.h>
 #include <netinet/ip.h>
 #include <netinet/ip_icmp.h>
+#include <signal.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
+#include <sys/select.h>
 #include <sys/socket.h>
 #include <sys/types.h>
-#include <time.h>
 #include <unistd.h>
 
 #include "ionet.h"
 #include "packet.h"
 #include "ping.h"
 
-typedef struct stats_s
-{
-    size_t send;
-    size_t recv;
-    double min;
-    double max;
-    double avg;
-    double M2;
-    double stddev;
-} stats_t;
+volatile int is_running = 1;
 
 void add_stat(stats_t* stats, bool recv, double elapsed_time)
 {
@@ -48,56 +39,7 @@ void add_stat(stats_t* stats, bool recv, double elapsed_time)
     stats->stddev = sqrt(stats->M2 / (stats->recv - 1));
 }
 
-double elapsed_time(struct s_time* time)
-{
-    long   sec_diff  = time->trecv.tv_sec - time->tsend.tv_sec;
-    long   nsec_diff = time->trecv.tv_nsec - time->tsend.tv_nsec;
-    double rtt_time  = sec_diff * 1000 + nsec_diff / 1e6;
-    return rtt_time;
-}
-
-void print_rep(packet_t packet, struct sockaddr_in* addr, double rtt_time)
-{
-    printf(
-        "%li bytes from %s: icmp_seq=%i ttl=%i time=%.3f ms\n",
-        packet.icmp_len,
-        inet_ntoa(addr->sin_addr),
-        ntohs(packet.icmphdr->un.echo.sequence),
-        packet.iphdr->ttl,
-        rtt_time
-    );
-}
-
-void print_header(char* param, struct in_addr* addr)
-{
-    printf(
-        "PING %s (%s) %i data bytes\n", param, inet_ntoa(*addr), PAYLOAD_SIZE
-    );
-}
-
-void print_footer(stats_t* stats, struct in_addr* addr)
-{
-    printf(
-        "--- %s ping statistics ---\n"
-        "%li packets transmitted, %li packets received, %li%% packet loss\n",
-        inet_ntoa(*addr),
-        stats->send,
-        stats->recv,
-        ((stats->send - stats->recv) / stats->send * 100)
-    );
-
-    if (stats->recv == 0)
-        return;
-    printf(
-        "round-trip min/avg/max/stddev = %.3f/%.3f/%.3f/%.3f ms\n",
-        stats->min,
-        stats->avg,
-        stats->max,
-        stats->stddev
-    );
-}
-
-void loop(int fd, struct sockaddr_in* addr)
+void loop(int fd, struct sockaddr_in* addr, t_param* params)
 {
     ssize_t       seq = 0;
     struct s_time time;
@@ -106,24 +48,50 @@ void loop(int fd, struct sockaddr_in* addr)
     double        elapsed;
     uint8_t       buff[1024];
     stats_t       stats;
-
-    int i = 0;
+    fd_set        fds;
 
     memset(&stats, 0, sizeof(stats));
     stats.min = __DBL_MAX__;
-    while (i++ < 6)
+    while (is_running)
     {
+        FD_ZERO(&fds);
+        FD_SET(fd, &fds);
+
         if (recv_pack == true)
         {
             send_packet(fd, addr, seq, &time);
             seq++;
             recv_pack = false;
         }
+        struct timeval timeout;
+        timeout.tv_sec  = 1;
+        timeout.tv_usec = 0;
+        int sel         = select(fd + 1, &fds, NULL, NULL, &timeout);
 
+        if (sel < 0)
+        {
+            perror("select");
+            break;
+        }
+        if (sel == 0)
+        {
+            printf("Request timeout for icmp_seq %ld\n", seq - 1);
+            recv_pack = true;
+            continue;
+        }
         enum recv_status ret = recv_packet(fd, &time, &packet, buff);
         if (ret == CONTINUE)
         {
             continue;
+        }
+        if (ret == STOP)
+        {
+            break;
+        }
+
+        if (params->verbose)
+        {
+            pr_icmp(&packet);
         }
 
         elapsed = elapsed_time(&time);
@@ -136,6 +104,12 @@ void loop(int fd, struct sockaddr_in* addr)
         recv_pack = true;
     }
     print_footer(&stats, &addr->sin_addr);
+}
+
+void handle_sigint(int sig)
+{
+    (void)sig;
+    is_running = 0;
 }
 
 int main(int ac, char** av)
@@ -167,6 +141,8 @@ int main(int ac, char** av)
 
     print_header(params.addr, &addr.sin_addr);
 
-    loop(fd, &addr);
+    signal(SIGINT, handle_sigint);
+
+    loop(fd, &addr, &params);
     return 0;
 }

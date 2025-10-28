@@ -1,10 +1,35 @@
 #include "ionet.h"
 
+#include <ionet.h>
+#include <netinet/ip_icmp.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/socket.h>
 #include <time.h>
 #include <unistd.h>
+
+extern volatile int is_running;
+
+void pr_icmp(packet_t* packet)
+{
+    struct icmphdr* icmp = packet->icmphdr;
+
+    switch (icmp->type)
+    {
+    case ICMP_HOST_UNREACH:
+        printf("Destination Host Unreachable\n");
+        break;
+    case ICMP_TIME_EXCEEDED:
+        printf("Time to live exceeded\n");
+        break;
+    case ICMP_REDIRECT:
+        printf("Redirect (change route)\n");
+        break;
+    default:
+        break;
+    }
+}
 
 void send_packet(
     int fd, struct sockaddr_in* addr, ssize_t seq, struct s_time* time
@@ -44,6 +69,10 @@ enum recv_status
     memset(packet, 0, sizeof(*packet));
 
     nb_bytes = recvfrom(fd, buff, pack_len, 0, NULL, NULL);
+    if (!is_running)
+    {
+        return STOP;
+    }
     if (nb_bytes < 0)
     {
         perror("recv");

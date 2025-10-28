@@ -7,6 +7,7 @@ SRC_FILES =				\
 				parsing.c	\
 				resolution.c	\
 				ionet.c \
+				utils.c	\
 
 SRC = $(addprefix $(SRC_DIR), $(SRC_FILES))
 

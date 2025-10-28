@@ -7,6 +7,7 @@ enum recv_status
 {
     CONTINUE,
     BREAK,
+    STOP,
     OK
 };
 
@@ -17,4 +18,5 @@ void send_packet(
 enum recv_status
     recv_packet(int fd, struct s_time* time, packet_t* packet, uint8_t* buff);
 
+void pr_icmp(packet_t* packet);
 #endif
