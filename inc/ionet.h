@@ -8,6 +8,8 @@ enum recv_status
     CONTINUE,
     BREAK,
     STOP,
+    LOSS,
+    ERROR,
     OK
 };
 

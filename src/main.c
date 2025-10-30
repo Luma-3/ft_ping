@@ -48,14 +48,11 @@ void loop(int fd, struct sockaddr_in* addr, t_param* params)
     double        elapsed;
     uint8_t       buff[1024];
     stats_t       stats;
-    fd_set        fds;
 
     memset(&stats, 0, sizeof(stats));
     stats.min = __DBL_MAX__;
     while (is_running)
     {
-        FD_ZERO(&fds);
-        FD_SET(fd, &fds);
 
         if (recv_pack == true)
         {
@@ -63,22 +60,7 @@ void loop(int fd, struct sockaddr_in* addr, t_param* params)
             seq++;
             recv_pack = false;
         }
-        struct timeval timeout;
-        timeout.tv_sec  = 1;
-        timeout.tv_usec = 0;
-        int sel         = select(fd + 1, &fds, NULL, NULL, &timeout);
 
-        if (sel < 0)
-        {
-            perror("select");
-            break;
-        }
-        if (sel == 0)
-        {
-            printf("Request timeout for icmp_seq %ld\n", seq - 1);
-            recv_pack = true;
-            continue;
-        }
         enum recv_status ret = recv_packet(fd, &time, &packet, buff);
         if (ret == CONTINUE)
         {
@@ -95,8 +77,12 @@ void loop(int fd, struct sockaddr_in* addr, t_param* params)
         }
 
         elapsed = elapsed_time(&time);
-        print_rep(packet, addr, elapsed);
-        add_stat(&stats, 1, elapsed);
+        if (ret == OK)
+        {
+            print_rep(packet, addr, elapsed);
+        }
+        add_stat(&stats, ret == OK, elapsed);
+
         if (elapsed < 1000)
         {
             usleep((1000 - elapsed) * 1000);
@@ -130,6 +116,16 @@ int main(int ac, char** av)
     if (fd < 0)
     {
         perror("socket");
+        return 1;
+    }
+    struct timeval timeout;
+    timeout.tv_sec  = 1;
+    timeout.tv_usec = 0;
+
+    if (setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof timeout) < 0)
+    {
+        perror("setsockopt");
+        close(fd);
         return 1;
     }
 

@@ -1,5 +1,7 @@
 #include "ionet.h"
 
+#include <asm-generic/errno.h>
+#include <errno.h>
 #include <ionet.h>
 #include <netinet/ip_icmp.h>
 #include <stdbool.h>
@@ -69,12 +71,17 @@ enum recv_status
     memset(packet, 0, sizeof(*packet));
 
     nb_bytes = recvfrom(fd, buff, pack_len, 0, NULL, NULL);
+    clock_gettime(CLOCK_MONOTONIC, &time->trecv);
     if (!is_running)
     {
         return STOP;
     }
     if (nb_bytes < 0)
     {
+        if (errno == EWOULDBLOCK)
+        {
+            return LOSS;
+        }
         perror("recv");
     }
 
@@ -87,7 +94,6 @@ enum recv_status
         return CONTINUE;
     }
 
-    clock_gettime(CLOCK_MONOTONIC, &time->trecv);
     if (verif_integrity(packet) != true)
     {
         printf("Packet Integrity KO");
