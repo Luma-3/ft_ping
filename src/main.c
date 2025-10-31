@@ -70,18 +70,17 @@ void loop(int fd, struct sockaddr_in* addr, t_param* params)
         {
             break;
         }
+        elapsed = elapsed_time(&time);
+        add_stat(&stats, ret == OK, elapsed);
 
         if (params->verbose)
         {
             pr_icmp(&packet);
         }
-
-        elapsed = elapsed_time(&time);
         if (ret == OK)
         {
             print_rep(packet, addr, elapsed);
         }
-        add_stat(&stats, ret == OK, elapsed);
 
         if (elapsed < 1000)
         {

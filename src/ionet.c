@@ -11,6 +11,8 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "packet.h"
+
 extern volatile int is_running;
 
 void pr_icmp(packet_t* packet)
@@ -89,14 +91,9 @@ enum recv_status
     packet->icmphdr  = icmp_unpack(buff, packet->pack_len, &packet->icmp_len);
     packet->iphdr    = ip_unpack(buff, &packet->ip_len);
 
-    if (verif_its_me(packet) != true)
+    if (verif_its_me(packet) != true || verif_integrity(packet))
     {
         return CONTINUE;
-    }
-
-    if (verif_integrity(packet) != true)
-    {
-        printf("Packet Integrity KO");
     }
     return OK;
 }

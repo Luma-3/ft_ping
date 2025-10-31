@@ -44,8 +44,6 @@ void parse_arg(int ac, char** av, t_param* params)
     if (optind < ac)
     {
         params->addr = av[optind];
-        printf("Host: %s\n", params->addr);
-        printf("Verbose mode: %s\n", params->verbose ? "ON" : "OFF");
     }
     else
     {
