@@ -1,13 +1,13 @@
 #include "ionet.h"
 
 #include <asm-generic/errno.h>
-#include <errno.h>
 #include <ionet.h>
 #include <netinet/ip_icmp.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/socket.h>
+#include <sys/types.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -62,8 +62,7 @@ void send_packet(
     }
 }
 
-enum recv_status
-    recv_packet(int fd, struct s_time* time, packet_t* packet, uint8_t* buff)
+ssize_t recv_packet(int fd, uint8_t* buff, packet_t* packet)
 {
     ssize_t nb_bytes = 0;
     ssize_t pack_len =
@@ -73,27 +72,13 @@ enum recv_status
     memset(packet, 0, sizeof(*packet));
 
     nb_bytes = recvfrom(fd, buff, pack_len, 0, NULL, NULL);
-    clock_gettime(CLOCK_MONOTONIC, &time->trecv);
-    if (!is_running)
-    {
-        return STOP;
-    }
-    if (nb_bytes < 0)
-    {
-        if (errno == EWOULDBLOCK)
-        {
-            return LOSS;
-        }
-        perror("recv");
-    }
 
-    packet->pack_len = nb_bytes;
-    packet->icmphdr  = icmp_unpack(buff, packet->pack_len, &packet->icmp_len);
-    packet->iphdr    = ip_unpack(buff, &packet->ip_len);
-
-    if (verif_its_me(packet) != true || verif_integrity(packet))
+    if (nb_bytes >= 0)
     {
-        return CONTINUE;
+        packet->pack_len = nb_bytes;
+        packet->icmphdr =
+            icmp_unpack(buff, packet->pack_len, &packet->icmp_len);
+        packet->iphdr = ip_unpack(buff, &packet->ip_len);
     }
-    return OK;
+    return nb_bytes;
 }

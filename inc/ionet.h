@@ -17,8 +17,7 @@ void send_packet(
     int fd, struct sockaddr_in* addr, ssize_t seq, struct s_time* time
 );
 
-enum recv_status
-    recv_packet(int fd, struct s_time* time, packet_t* packet, uint8_t* buff);
+ssize_t recv_packet(int fd, uint8_t* buff, packet_t* packet);
 
 void pr_icmp(packet_t* packet);
 #endif

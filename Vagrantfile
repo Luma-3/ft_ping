@@ -20,6 +20,7 @@ Vagrant.configure("2") do |config|
     apt-get update 
     apt-get -y install rsync inetutils-ping
     apt install -y make gcc valgrind tcpdump docker docker-compose
+    usermod -aG docker vagrant
   SHELL
 
 end

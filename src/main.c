@@ -1,5 +1,6 @@
 #include <arpa/inet.h>
 #include <bits/time.h>
+#include <errno.h>
 #include <math.h>
 #include <netdb.h>
 #include <netinet/in.h>
@@ -14,6 +15,7 @@
 #include <sys/select.h>
 #include <sys/socket.h>
 #include <sys/types.h>
+#include <time.h>
 #include <unistd.h>
 
 #include "ionet.h"
@@ -22,13 +24,10 @@
 
 volatile int is_running = 1;
 
-void add_stat(stats_t* stats, bool recv, double elapsed_time)
+void add_recv(stats_t* stats, double elapsed_time)
 {
-    stats->send++;
-    stats->recv += recv;
+    stats->recv++;
 
-    if (!recv)
-        return;
     stats->max = MAX(stats->max, elapsed_time);
     stats->min = MIN(stats->min, elapsed_time);
 
@@ -37,6 +36,19 @@ void add_stat(stats_t* stats, bool recv, double elapsed_time)
     stats->avg += delta / stats->recv;
     stats->M2 += delta * (elapsed_time - stats->avg);
     stats->stddev = sqrt(stats->M2 / (stats->recv - 1));
+}
+
+void pr_packet(
+    packet_t* packet, stats_t* stats, double elapsed, struct sockaddr_in* addr
+)
+{
+    if (verif_its_me(packet) != true || verif_integrity(packet) != true)
+    {
+        return;
+    }
+
+    add_recv(stats, elapsed);
+    print_rep(*packet, addr, elapsed);
 }
 
 void loop(int fd, struct sockaddr_in* addr, t_param* params)
@@ -51,35 +63,36 @@ void loop(int fd, struct sockaddr_in* addr, t_param* params)
 
     memset(&stats, 0, sizeof(stats));
     stats.min = __DBL_MAX__;
+
     while (is_running)
     {
 
         if (recv_pack == true)
         {
             send_packet(fd, addr, seq, &time);
+            stats.send++;
             seq++;
             recv_pack = false;
         }
 
-        enum recv_status ret = recv_packet(fd, &time, &packet, buff);
-        if (ret == CONTINUE)
+        ssize_t ret = recv_packet(fd, buff, &packet);
+        if (ret < 0)
         {
-            continue;
-        }
-        if (ret == STOP)
-        {
+            if (errno == EAGAIN)
+            {
+                continue;
+            }
+            perror("recv_packet");
             break;
         }
+        clock_gettime(CLOCK_MONOTONIC, &time.trecv);
+
         elapsed = elapsed_time(&time);
-        add_stat(&stats, ret == OK, elapsed);
+        pr_packet(&packet, &stats, elapsed, addr);
 
         if (params->verbose)
         {
             pr_icmp(&packet);
-        }
-        if (ret == OK)
-        {
-            print_rep(packet, addr, elapsed);
         }
 
         if (elapsed < 1000)
@@ -99,8 +112,14 @@ void handle_sigint(int sig)
 
 int main(int ac, char** av)
 {
+    int                sock_fd;
     t_param            params;
     struct sockaddr_in addr;
+    struct timeval     timeout;
+
+    timeout.tv_sec  = 1;
+    timeout.tv_usec = 0;
+
     memset(&params, 0, sizeof(params));
     parse_arg(ac, av, &params);
 
@@ -110,27 +129,27 @@ int main(int ac, char** av)
         return 1;
     }
 
-    int fd;
-    fd = socket(AF_INET, SOCK_RAW, IPPROTO_ICMP);
-    if (fd < 0)
+    sock_fd = socket(AF_INET, SOCK_RAW, IPPROTO_ICMP);
+    if (sock_fd < 0)
     {
         perror("socket");
         return 1;
     }
-    struct timeval timeout;
-    timeout.tv_sec  = 1;
-    timeout.tv_usec = 0;
 
-    if (setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof timeout) < 0)
+    if (setsockopt(sock_fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof timeout) <
+        0)
     {
         perror("setsockopt");
-        close(fd);
+        close(sock_fd);
         return 1;
     }
 
+    // int val = 1;
+    // setsockopt(sock_fd, IPPROTO_IP, IP_RECVTTL, &val, sizeof(val));
+
     if (resolve_host(params.addr, &addr))
     {
-        close(fd);
+        close(sock_fd);
         return 1;
     }
 
@@ -138,6 +157,6 @@ int main(int ac, char** av)
 
     signal(SIGINT, handle_sigint);
 
-    loop(fd, &addr, &params);
+    loop(sock_fd, &addr, &params);
     return 0;
 }
