@@ -1,0 +1,14 @@
+version: '3.3'
+services:
+  node1:
+    build: .
+    cap_add: [NET_ADMIN, NET_RAW]
+    networks: ["isolated_net"]
+  node2:
+    build: .
+    cap_add: [NET_ADMIN, NET_RAW]
+    networks: ["isolated_net"]
+networks:
+  isolated_net:
+    driver: bridge
+
