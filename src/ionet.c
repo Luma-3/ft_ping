@@ -13,7 +13,7 @@
 
 #include "packet.h"
 
-extern volatile int is_running;
+extern volatile int g_is_running;
 
 void pr_icmp(packet_t* packet)
 {

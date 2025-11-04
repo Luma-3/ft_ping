@@ -12,7 +12,7 @@ Vagrant.configure("2") do |config|
   config.vm.box = "debian/bullseye64"
 
 
-  config.vm.synced_folder "/home/Luma/Documents/ft_ping", "/vagrant"
+  config.vm.synced_folder "./", "/vagrant"
 
   config.ssh.forward_agent = true
 

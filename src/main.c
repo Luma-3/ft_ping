@@ -1,6 +1,6 @@
 #include <arpa/inet.h>
 #include <bits/time.h>
-#include <errno.h>
+#include <bits/types/struct_timeval.h>
 #include <math.h>
 #include <netdb.h>
 #include <netinet/in.h>
@@ -14,6 +14,7 @@
 #include <string.h>
 #include <sys/select.h>
 #include <sys/socket.h>
+#include <sys/time.h>
 #include <sys/types.h>
 #include <time.h>
 #include <unistd.h>
@@ -22,7 +23,12 @@
 #include "packet.h"
 #include "ping.h"
 
-volatile int is_running = 1;
+volatile int g_is_running = 1;
+int          g_argopt     = 0;
+int          g_intervl    = 1;
+int          g_count      = -1;
+int          g_timeout    = 5;
+int          g_linger     = 5;
 
 void add_recv(stats_t* stats, double elapsed_time)
 {
@@ -46,60 +52,107 @@ void pr_packet(
     {
         return;
     }
-
     add_recv(stats, elapsed);
+    if (g_argopt & OPT_COUNT && stats->recv >= (size_t)g_count)
+    {
+        g_is_running = 0;
+    }
     print_rep(*packet, addr, elapsed);
 }
 
-void loop(int fd, struct sockaddr_in* addr, t_param* params)
+struct timeval time_sub(struct timeval a, struct timeval b)
 {
-    ssize_t       seq = 0;
-    struct s_time time;
-    bool          recv_pack = true;
-    packet_t      packet;
-    double        elapsed;
-    uint8_t       buff[1024];
-    stats_t       stats;
+    struct timeval result;
+    result.tv_sec  = a.tv_sec - b.tv_sec;
+    result.tv_usec = a.tv_usec - b.tv_usec;
+    if (result.tv_usec < 0)
+    {
+        result.tv_sec -= 1;
+        result.tv_usec += 1000000;
+    }
+    return result;
+}
+
+struct timeval time_add(struct timeval a, struct timeval b)
+{
+    struct timeval result;
+    result.tv_sec  = a.tv_sec + b.tv_sec;
+    result.tv_usec = a.tv_usec + b.tv_usec;
+    if (result.tv_usec >= 1000000)
+    {
+        result.tv_sec += 1;
+        result.tv_usec -= 1000000;
+    }
+    return result;
+}
+
+void loop(int fd, struct sockaddr_in* addr)
+{
+    ssize_t        seq = 0;
+    struct s_time  time;
+    packet_t       packet;
+    double         elapsed;
+    uint8_t        buff[1024];
+    stats_t        stats;
+    fd_set         read_fds;
+    struct timeval resp_time, now, last, start_time;
+
+    struct timeval intervl = {.tv_sec = g_intervl, .tv_usec = 0};
+    gettimeofday(&start_time, NULL);
 
     memset(&stats, 0, sizeof(stats));
     stats.min = __DBL_MAX__;
 
-    while (is_running)
-    {
+    send_packet(fd, addr, seq++, &time);
+    stats.send++;
 
-        if (recv_pack == true)
+    gettimeofday(&last, NULL);
+
+    while (g_is_running)
+    {
+        FD_ZERO(&read_fds);
+        FD_SET(fd, &read_fds);
+
+        gettimeofday(&now, NULL);
+        if (time_sub(now, last).tv_sec >= intervl.tv_sec)
         {
-            send_packet(fd, addr, seq, &time);
+            gettimeofday(&last, NULL);
+            send_packet(fd, addr, seq++, &time);
             stats.send++;
-            seq++;
-            recv_pack = false;
         }
 
-        ssize_t ret = recv_packet(fd, buff, &packet);
-        if (ret < 0)
+        resp_time = time_sub(time_add(last, intervl), now);
+
+        int n = select(fd + 1, &read_fds, NULL, NULL, &resp_time);
+        if (n < 0)
         {
-            if (errno == EAGAIN)
-            {
-                continue;
-            }
-            perror("recv_packet");
+            perror("select");
             break;
         }
-        clock_gettime(CLOCK_MONOTONIC, &time.trecv);
 
-        elapsed = elapsed_time(&time);
-        pr_packet(&packet, &stats, elapsed, addr);
+        if (g_argopt & OPT_TIMEOUT &&
+            time_sub(now, start_time).tv_sec >= g_timeout)
+        {
+            break;
+        }
 
-        if (params->verbose)
+        if (n == 1)
+        {
+            ssize_t ret = recv_packet(fd, buff, &packet);
+            if (ret < 0)
+            {
+                perror("recv_packet");
+                break;
+            }
+            clock_gettime(CLOCK_MONOTONIC, &time.trecv);
+            elapsed = elapsed_time(&time);
+            pr_packet(&packet, &stats, elapsed, addr);
+        }
+
+        if (g_argopt & OPT_VERBOSE)
         {
             pr_icmp(&packet);
         }
-
-        if (elapsed < 1000)
-        {
-            usleep((1000 - elapsed) * 1000);
-        }
-        recv_pack = true;
     }
     print_footer(&stats, &addr->sin_addr);
 }
@@ -107,7 +160,7 @@ void loop(int fd, struct sockaddr_in* addr, t_param* params)
 void handle_sigint(int sig)
 {
     (void)sig;
-    is_running = 0;
+    g_is_running = 0;
 }
 
 int main(int ac, char** av)
@@ -115,10 +168,6 @@ int main(int ac, char** av)
     int                sock_fd;
     t_param            params;
     struct sockaddr_in addr;
-    struct timeval     timeout;
-
-    timeout.tv_sec  = 1;
-    timeout.tv_usec = 0;
 
     memset(&params, 0, sizeof(params));
     parse_arg(ac, av, &params);
@@ -136,16 +185,7 @@ int main(int ac, char** av)
         return 1;
     }
 
-    if (setsockopt(sock_fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof timeout) <
-        0)
-    {
-        perror("setsockopt");
-        close(sock_fd);
-        return 1;
-    }
-
-    // int val = 1;
-    // setsockopt(sock_fd, IPPROTO_IP, IP_RECVTTL, &val, sizeof(val));
+    setsockopt(sock_fd, IPPROTO_IP, IP_TTL, &(int){1}, sizeof(int));
 
     if (resolve_host(params.addr, &addr))
     {
@@ -157,6 +197,6 @@ int main(int ac, char** av)
 
     signal(SIGINT, handle_sigint);
 
-    loop(sock_fd, &addr, &params);
+    loop(sock_fd, &addr);
     return 0;
 }

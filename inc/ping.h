@@ -16,6 +16,22 @@ typedef struct s_param
     char* addr;
 } t_param;
 
+extern int g_argopt;
+extern int g_intervl;
+extern int g_count;
+extern int g_timeout;
+extern int g_linger;
+
+enum arg_opt
+{
+    OPT_TTL      = 1 << 0,
+    OPT_INTERVAL = 1 << 1,
+    OPT_COUNT    = 1 << 2,
+    OPT_TIMEOUT  = 1 << 3,
+    OPT_LINGER   = 1 << 4,
+    OPT_VERBOSE  = 1 << 5,
+};
+
 typedef struct stats_s
 {
     size_t send;
