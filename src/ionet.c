@@ -2,6 +2,8 @@
 
 #include <asm-generic/errno.h>
 #include <ionet.h>
+#include <netdb.h>
+#include <netinet/in.h>
 #include <netinet/ip_icmp.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -81,4 +83,25 @@ ssize_t recv_packet(int fd, uint8_t* buff, packet_t* packet)
         packet->iphdr = ip_unpack(buff, &packet->ip_len);
     }
     return nb_bytes;
+}
+
+int resolve_host(char* addr_str, struct sockaddr_in* addr)
+{
+    struct addrinfo hints, *result;
+    int             err;
+
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family   = AF_INET;
+    hints.ai_socktype = SOCK_RAW;
+
+    err = getaddrinfo(addr_str, NULL, &hints, &result);
+    if (err != 0)
+    {
+        fprintf(stderr, "ping: %s: %s", addr_str, gai_strerror(err));
+        return 1;
+    }
+
+    memcpy(addr, result->ai_addr, sizeof(struct sockaddr_in));
+    freeaddrinfo(result);
+    return 0;
 }

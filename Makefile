@@ -5,7 +5,6 @@ SRC_FILES =				\
 				main.c	\
 				packet.c	\
 				parsing.c	\
-				resolution.c	\
 				ionet.c \
 				utils.c	\
 

@@ -1,3 +1,4 @@
+#include <stdint.h>
 #ifndef FT__PING
 #define FT__PING 1
 
@@ -12,15 +13,14 @@
 
 typedef struct s_param
 {
-    bool  verbose;
-    char* addr;
+    int     optarg;
+    char*   addr;
+    int     timeout;
+    int     linger;
+    int     interval;
+    int     count;
+    uint8_t ttl;
 } t_param;
-
-extern int g_argopt;
-extern int g_intervl;
-extern int g_count;
-extern int g_timeout;
-extern int g_linger;
 
 enum arg_opt
 {
@@ -31,6 +31,12 @@ enum arg_opt
     OPT_LINGER   = 1 << 4,
     OPT_VERBOSE  = 1 << 5,
 };
+
+typedef struct s_ping
+{
+    int                sockfd;
+    struct sockaddr_in addr;
+} t_ping;
 
 typedef struct stats_s
 {
@@ -44,7 +50,6 @@ typedef struct stats_s
 } stats_t;
 
 void parse_arg(int ac, char** av, t_param* params);
-int  resolve_host(char* addr_str, struct sockaddr_in* addr);
 
 double elapsed_time(struct s_time* time);
 void   print_rep(packet_t packet, struct sockaddr_in* addr, double rtt_time);

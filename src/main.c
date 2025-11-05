@@ -11,6 +11,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/select.h>
 #include <sys/socket.h>
@@ -86,7 +87,7 @@ struct timeval time_add(struct timeval a, struct timeval b)
     return result;
 }
 
-void loop(int fd, struct sockaddr_in* addr)
+void loop(t_ping* ping)
 {
     ssize_t        seq = 0;
     struct s_time  time;
@@ -111,7 +112,7 @@ void loop(int fd, struct sockaddr_in* addr)
     while (g_is_running)
     {
         FD_ZERO(&read_fds);
-        FD_SET(fd, &read_fds);
+        FD_SET(ping->sockfd, &read_fds);
 
         gettimeofday(&now, NULL);
         if (time_sub(now, last).tv_sec >= intervl.tv_sec)
@@ -123,7 +124,7 @@ void loop(int fd, struct sockaddr_in* addr)
 
         resp_time = time_sub(time_add(last, intervl), now);
 
-        int n = select(fd + 1, &read_fds, NULL, NULL, &resp_time);
+        int n = select(ping->sockfd + 1, &read_fds, NULL, NULL, &resp_time);
         if (n < 0)
         {
             perror("select");
@@ -138,7 +139,7 @@ void loop(int fd, struct sockaddr_in* addr)
 
         if (n == 1)
         {
-            ssize_t ret = recv_packet(fd, buff, &packet);
+            ssize_t ret = recv_packet(ping->sockfd, buff, &packet);
             if (ret < 0)
             {
                 perror("recv_packet");
@@ -146,7 +147,7 @@ void loop(int fd, struct sockaddr_in* addr)
             }
             clock_gettime(CLOCK_MONOTONIC, &time.trecv);
             elapsed = elapsed_time(&time);
-            pr_packet(&packet, &stats, elapsed, addr);
+            pr_packet(&packet, &stats, elapsed, &ping->addr);
         }
 
         if (g_argopt & OPT_VERBOSE)
@@ -154,7 +155,7 @@ void loop(int fd, struct sockaddr_in* addr)
             pr_icmp(&packet);
         }
     }
-    print_footer(&stats, &addr->sin_addr);
+    print_footer(&stats, &ping->addr.sin_addr);
 }
 
 void handle_sigint(int sig)
@@ -163,14 +164,58 @@ void handle_sigint(int sig)
     g_is_running = 0;
 }
 
+/**
+ * pre: init variables for ping, socket, sock opt and host.
+ */
+
+void init_ping(t_ping* ping, t_param* params)
+{
+    ping->sockfd = socket(AF_INET, SOCK_RAW, IPPROTO_ICMP);
+    if (ping->sockfd < 0)
+    {
+        perror("socket");
+        exit(1);
+    }
+
+    if (params->optarg & OPT_TTL)
+    {
+        printf("Setting TTL to %d\n", params->ttl);
+        if (setsockopt(
+                ping->sockfd,
+                IPPROTO_IP,
+                IP_TTL,
+                &params->ttl,
+                sizeof(params->ttl)
+            ) < 0)
+        {
+            perror("sockopt");
+            close(ping->sockfd);
+            exit(1);
+        }
+    }
+
+    if (resolve_host(params->addr, &ping->addr))
+    {
+        close(ping->sockfd);
+        exit(1);
+    }
+
+    signal(SIGINT, handle_sigint);
+}
+
+/**
+ * pre: declare global struct for prog, call, verification and start pipeline,
+ * finaly loop
+ *
+ *
+ */
 int main(int ac, char** av)
 {
-    int                sock_fd;
-    t_param            params;
-    struct sockaddr_in addr;
+    t_param params;
+    t_ping  ping;
 
     memset(&params, 0, sizeof(params));
-    parse_arg(ac, av, &params);
+    memset(&ping, 0, sizeof(ping));
 
     if (getuid() != 0)
     {
@@ -178,25 +223,10 @@ int main(int ac, char** av)
         return 1;
     }
 
-    sock_fd = socket(AF_INET, SOCK_RAW, IPPROTO_ICMP);
-    if (sock_fd < 0)
-    {
-        perror("socket");
-        return 1;
-    }
+    parse_arg(ac, av, &params);
 
-    setsockopt(sock_fd, IPPROTO_IP, IP_TTL, &(int){1}, sizeof(int));
-
-    if (resolve_host(params.addr, &addr))
-    {
-        close(sock_fd);
-        return 1;
-    }
-
-    print_header(params.addr, &addr.sin_addr);
-
-    signal(SIGINT, handle_sigint);
-
-    loop(sock_fd, &addr);
+    init_ping(&ping, &params);
+    print_header(params.addr, &ping.addr.sin_addr);
+    loop(&ping);
     return 0;
 }

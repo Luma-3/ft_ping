@@ -15,12 +15,12 @@ void usage()
         "Options:\n"
         "    -v, --verbose            verbose output\n"
         "    -?, --help               print help and exit\n"
-        "    -i, --interval=NUMBER    interval between sending each packet (in "
-        "seconds)\n"
-        "    -c, --count=NUMBER       stop after sending (and receiving) "
-        "NUMBER ECHO_REQUEST packets\n"
-        "    -w, --timeout=NUMBER     time to wait for a response (in "
-        "seconds)\n"
+        "    -i, --interval=N         wait N secondes between sending each "
+        "packet\n"
+        "    -c, --count=N            stop after sending N packets\n"
+        "    -w, --timeout=N          stop after N seconds\n"
+        "    -W, --linger=N           N secondes to wait for response\n"
+        "    -t, --ttl=N              specify N as time-to-live\n"
     );
 }
 
@@ -31,6 +31,7 @@ static struct option longopt[] = {
     {"count", required_argument, NULL, 'c'},
     {"timeout", required_argument, NULL, 'w'},
     {"linger", required_argument, NULL, 'W'},
+    {"ttl", required_argument, NULL, 't'},
     {0, 0, 0, 0}
 };
 
@@ -38,20 +39,25 @@ void parse_arg(int ac, char** av, t_param* params)
 {
     int opt;
 
-    while ((opt = getopt_long(ac, av, "?vi:c:w:W:", longopt, NULL)) != -1)
+    params->count    = -1;
+    params->interval = 1;
+    params->timeout  = 5;
+    params->linger   = 5;
+
+    while ((opt = getopt_long(ac, av, "?vi:c:w:W:t:", longopt, NULL)) != -1)
     {
         switch (opt)
         {
         case 'v':
-            params->verbose = true;
+            params->optarg |= OPT_VERBOSE;
             break;
         case '?':
             usage();
             exit(EXIT_SUCCESS);
         case 'i':
-            g_argopt |= OPT_INTERVAL;
-            g_intervl = atoi(optarg);
-            if (g_intervl <= 0)
+            params->optarg |= OPT_INTERVAL;
+            params->interval = atoi(optarg);
+            if (params->interval <= 0)
             {
                 fprintf(
                     stderr,
@@ -62,9 +68,9 @@ void parse_arg(int ac, char** av, t_param* params)
             }
             break;
         case 'c':
-            g_argopt |= OPT_COUNT;
-            g_count = atoi(optarg);
-            if (g_count <= 0)
+            params->optarg |= OPT_COUNT;
+            params->count = atoi(optarg);
+            if (params->count <= 0)
             {
                 fprintf(
                     stderr, "ft_ping: usage error: Invalid count '%s'\n", optarg
@@ -73,14 +79,38 @@ void parse_arg(int ac, char** av, t_param* params)
             }
             break;
         case 'w':
-            g_argopt |= OPT_TIMEOUT;
-            g_timeout = atoi(optarg);
-            if (g_timeout <= 0)
+            params->optarg |= OPT_TIMEOUT;
+            params->timeout = atoi(optarg);
+            if (params->timeout <= 0)
             {
                 fprintf(
                     stderr,
                     "ft_ping: usage error: Invalid timeout '%s'\n",
                     optarg
+                );
+                exit(EXIT_FAILURE);
+            }
+            break;
+        case 'W':
+            params->optarg |= OPT_LINGER;
+            params->linger = atoi(optarg);
+            if (params->linger <= 0)
+            {
+                fprintf(
+                    stderr,
+                    "ft_ping: usage error: Invalid linger '%s'\n",
+                    optarg
+                );
+                exit(EXIT_FAILURE);
+            }
+            break;
+        case 't':
+            params->optarg |= OPT_TTL;
+            params->ttl = atoi(optarg);
+            if (params->ttl == 0)
+            {
+                fprintf(
+                    stderr, "ft_ping: usage error: Invalid ttl '%s'\n", optarg
                 );
                 exit(EXIT_FAILURE);
             }
