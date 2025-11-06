@@ -14,6 +14,7 @@
 #include <unistd.h>
 
 #include "packet.h"
+#include "ping.h"
 
 extern volatile int g_is_running;
 
@@ -37,10 +38,9 @@ void pr_icmp(packet_t* packet)
     }
 }
 
-void send_packet(
-    int fd, struct sockaddr_in* addr, ssize_t seq, struct s_time* time
-)
+void send_packet(t_ping* ping, struct s_time* time)
 {
+
     uint8_t icmp_buff[sizeof(struct icmphdr) + PAYLOAD_SIZE];
 
     memset(icmp_buff, 0, sizeof(struct icmphdr) + PAYLOAD_SIZE);
@@ -49,19 +49,21 @@ void send_packet(
     memset(&time->trecv, 0, sizeof(time->trecv));
     clock_gettime(CLOCK_MONOTONIC, &time->tsend);
 
-    icmp_pack(seq, icmp_buff, (char*)&time->tsend);
+    icmp_pack(ping->seq, icmp_buff, (char*)&time->tsend);
 
     if (sendto(
-            fd,
+            ping->sockfd,
             icmp_buff,
             sizeof(struct icmphdr) + PAYLOAD_SIZE,
             0,
-            (struct sockaddr*)addr,
-            sizeof(*addr)
+            (struct sockaddr*)&ping->addr,
+            sizeof(ping->addr)
         ) < 0)
     {
         perror("sendto");
     }
+    ping->stats.send++;
+    ping->seq++;
 }
 
 ssize_t recv_packet(int fd, uint8_t* buff, packet_t* packet)

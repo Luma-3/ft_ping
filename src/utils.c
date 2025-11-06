@@ -17,7 +17,7 @@ double elapsed_time(struct s_time* time)
 void print_rep(packet_t packet, struct sockaddr_in* addr, double rtt_time)
 {
     printf(
-        "%li bytes from %s: icmp_seq=%i ttl=%i time=%.3f ms\n",
+        "%li bytes from %s: icmp_seq=%i ttl=%i time=%.3f ms",
         packet.icmp_len,
         inet_ntoa(addr->sin_addr),
         ntohs(packet.icmphdr->un.echo.sequence),
@@ -33,7 +33,7 @@ void print_header(char* param, struct in_addr* addr)
     );
 }
 
-void print_footer(stats_t* stats, struct in_addr* addr)
+void print_footer(t_stats* stats, struct in_addr* addr)
 {
     printf(
         "--- %s ping statistics ---\n"
@@ -53,4 +53,30 @@ void print_footer(stats_t* stats, struct in_addr* addr)
         stats->max,
         stats->stddev
     );
+}
+
+struct timeval time_sub(struct timeval a, struct timeval b)
+{
+    struct timeval result;
+    result.tv_sec  = a.tv_sec - b.tv_sec;
+    result.tv_usec = a.tv_usec - b.tv_usec;
+    if (result.tv_usec < 0)
+    {
+        result.tv_sec -= 1;
+        result.tv_usec += 1000000;
+    }
+    return result;
+}
+
+struct timeval time_add(struct timeval a, struct timeval b)
+{
+    struct timeval result;
+    result.tv_sec  = a.tv_sec + b.tv_sec;
+    result.tv_usec = a.tv_usec + b.tv_usec;
+    if (result.tv_usec >= 1000000)
+    {
+        result.tv_sec += 1;
+        result.tv_usec -= 1000000;
+    }
+    return result;
 }

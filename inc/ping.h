@@ -8,8 +8,9 @@
 
 #include "packet.h"
 
-#define MIN(X, Y) (((X) < (Y)) ? (X) : (Y))
-#define MAX(X, Y) (((X) > (Y)) ? (X) : (Y))
+#define MIN(X, Y)          (((X) < (Y)) ? (X) : (Y))
+#define MAX(X, Y)          (((X) > (Y)) ? (X) : (Y))
+#define __PING_RECV_BUFF__ 1024
 
 typedef struct s_param
 {
@@ -32,13 +33,7 @@ enum arg_opt
     OPT_VERBOSE  = 1 << 5,
 };
 
-typedef struct s_ping
-{
-    int                sockfd;
-    struct sockaddr_in addr;
-} t_ping;
-
-typedef struct stats_s
+typedef struct s_stats
 {
     size_t send;
     size_t recv;
@@ -47,12 +42,24 @@ typedef struct stats_s
     double avg;
     double M2;
     double stddev;
-} stats_t;
+} t_stats;
+
+typedef struct s_ping
+{
+    int                sockfd;
+    t_stats            stats;
+    struct sockaddr_in addr;
+    long               seq;
+    int                recv[__PING_RECV_BUFF__];
+} t_ping;
 
 void parse_arg(int ac, char** av, t_param* params);
 
 double elapsed_time(struct s_time* time);
 void   print_rep(packet_t packet, struct sockaddr_in* addr, double rtt_time);
 void   print_header(char* param, struct in_addr* addr);
-void   print_footer(stats_t* stats, struct in_addr* addr);
+void   print_footer(t_stats* stats, struct in_addr* addr);
+
+struct timeval time_sub(struct timeval a, struct timeval b);
+struct timeval time_add(struct timeval a, struct timeval b);
 #endif

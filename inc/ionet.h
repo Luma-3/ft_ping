@@ -2,11 +2,10 @@
 #define _IONET_H_ 1
 
 #include "packet.h"
+#include "ping.h"
 
 ssize_t recv_packet(int fd, uint8_t* buff, packet_t* packet);
-void    send_packet(
-       int fd, struct sockaddr_in* addr, ssize_t seq, struct s_time* time
-   );
+void    send_packet(t_ping* ping, struct s_time* time);
 
 void pr_icmp(packet_t* packet);
 
