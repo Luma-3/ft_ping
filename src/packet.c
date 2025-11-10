@@ -80,5 +80,11 @@ int verif_integrity(packet_t* packet)
 
 int verif_its_me(packet_t* packet)
 {
+    if (packet->icmphdr->type == ICMP_DEST_UNREACH ||
+        packet->icmphdr->type == ICMP_TIME_EXCEEDED ||
+        packet->icmphdr->type == ICMP_REDIRECT)
+    {
+        return (packet->inner_icmphdr->un.echo.id == htons(getpid() & 0xFFFF));
+    }
     return (packet->icmphdr->un.echo.id == htons(getpid() & 0xFFFF));
 }

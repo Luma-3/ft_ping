@@ -1,7 +1,9 @@
 
 #include <arpa/inet.h>
 #include <netinet/in.h>
+#include <netinet/ip_icmp.h>
 #include <stdio.h>
+#include <unistd.h>
 
 #include "packet.h"
 #include "ping.h"
@@ -14,36 +16,91 @@ double elapsed_time(struct s_time* time)
     return rtt_time;
 }
 
-void print_rep(packet_t packet, struct sockaddr_in* addr, double rtt_time)
+void pr_icmp(packet_t* packet)
 {
-    printf(
-        "%li bytes from %s: icmp_seq=%i ttl=%i time=%.3f ms",
-        packet.icmp_len,
-        inet_ntoa(addr->sin_addr),
-        ntohs(packet.icmphdr->un.echo.sequence),
-        packet.iphdr->ttl,
-        rtt_time
-    );
+    struct icmphdr* icmp = packet->icmphdr;
+
+    switch (icmp->type)
+    {
+    case ICMP_HOST_UNREACH:
+        printf("Destination Host Unreachable\n");
+        break;
+    case ICMP_TIME_EXCEEDED:
+        printf("Time to live exceeded\n");
+        break;
+    case ICMP_REDIRECT:
+        printf("Redirect (change route)\n");
+        break;
+    default:
+        break;
+    }
 }
 
-void print_header(char* param, struct in_addr* addr)
+void print_rep(t_ping* ping, packet_t* packet, double rtt_time)
 {
     printf(
-        "PING %s (%s) %i data bytes\n", param, inet_ntoa(*addr), PAYLOAD_SIZE
+        "%li bytes from %s: ", packet->icmp_len, inet_ntoa(ping->addr.sin_addr)
     );
+    if (packet->icmphdr->type == ICMP_ECHOREPLY)
+    {
+        printf(
+            "icmp_seq=%i ttl=%i time=%.3f ms",
+            ntohs(packet->icmphdr->un.echo.sequence),
+            packet->iphdr->ttl,
+            rtt_time
+        );
+    }
+    else
+    {
+        pr_icmp(packet);
+        return;
+    }
+    if (ping->recv
+            [htons(packet->icmphdr->un.echo.sequence) % __PING_RECV_BUFF__] ==
+        0)
+    {
+        printf(" (DUP!)");
+    }
+    printf("\n");
 }
 
+void print_header(t_param* param, struct in_addr* addr)
+{
+    printf(
+        "PING %s (%s) %i data bytes",
+        param->addr,
+        inet_ntoa(*addr),
+        PAYLOAD_SIZE
+    );
+    if (param->optarg & OPT_VERBOSE)
+    {
+        int pid = getpid() & 0xFFFF;
+        printf(", id 0x%x = %i", pid, pid);
+    }
+    printf("\n");
+}
 void print_footer(t_stats* stats, struct in_addr* addr)
 {
     printf(
         "--- %s ping statistics ---\n"
-        "%li packets transmitted, %li packets received, %li%% packet loss\n",
+        "%li packets transmitted, %li packets received,",
         inet_ntoa(*addr),
         stats->send,
-        stats->recv,
-        stats->send == 0 ? 0 : ((stats->send - stats->recv) / stats->send * 100)
+        stats->recv
     );
 
+    if (stats->dup != 0)
+    {
+        printf(" +%li duplicates,", stats->dup);
+    }
+    if (stats->err != 0)
+    {
+        printf(" +%li errors,", stats->err);
+    }
+    printf(
+        " %li%% packet loss\n",
+        stats->send == 0 ? 0 : ((stats->send - stats->recv) / stats->send * 100)
+    );
     if (stats->recv == 0)
         return;
     printf(

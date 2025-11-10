@@ -10,11 +10,17 @@
 
 typedef struct packet_s
 {
+    size_t pack_len;
+
     struct iphdr*   iphdr;
     size_t          ip_len;
     struct icmphdr* icmphdr;
     size_t          icmp_len;
-    size_t          pack_len;
+
+    struct iphdr*   inner_iphdr;
+    size_t          inner_ip_len;
+    struct icmphdr* inner_icmphdr;
+    size_t          inner_icmp_len;
 } packet_t;
 
 struct s_time

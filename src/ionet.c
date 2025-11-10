@@ -18,26 +18,6 @@
 
 extern volatile int g_is_running;
 
-void pr_icmp(packet_t* packet)
-{
-    struct icmphdr* icmp = packet->icmphdr;
-
-    switch (icmp->type)
-    {
-    case ICMP_HOST_UNREACH:
-        printf("Destination Host Unreachable\n");
-        break;
-    case ICMP_TIME_EXCEEDED:
-        printf("Time to live exceeded\n");
-        break;
-    case ICMP_REDIRECT:
-        printf("Redirect (change route)\n");
-        break;
-    default:
-        break;
-    }
-}
-
 void send_packet(t_ping* ping, struct s_time* time)
 {
 
@@ -63,6 +43,7 @@ void send_packet(t_ping* ping, struct s_time* time)
         perror("sendto");
     }
     ping->stats.send++;
+    ping->recv[ping->seq % __PING_RECV_BUFF__] = 1;
     ping->seq++;
 }
 

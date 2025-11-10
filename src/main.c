@@ -32,10 +32,10 @@ static void handle_sigint(int sig)
     g_is_running = 0;
 }
 
-void add_recv(t_stats* stats, double elapsed_time)
+void refresh_stats(t_stats* stats, double elapsed_time, bool recv)
 {
-    stats->recv++;
-
+    if (recv)
+        stats->recv++;
     stats->max = MAX(stats->max, elapsed_time);
     stats->min = MIN(stats->min, elapsed_time);
 
@@ -46,17 +46,39 @@ void add_recv(t_stats* stats, double elapsed_time)
     stats->stddev = sqrt(stats->M2 / (stats->recv - 1));
 }
 
-void pr_packet(
-    packet_t* packet, t_stats* stats, double elapsed, struct sockaddr_in* addr
-)
+void pr_packet(t_ping* ping, packet_t* packet, double elapsed)
 {
+    if (packet->icmphdr->type == ICMP_TIME_EXCEEDED ||
+        packet->icmphdr->type == ICMP_DEST_UNREACH ||
+        packet->icmphdr->type == ICMP_REDIRECT)
+    {
+        packet->inner_icmphdr = icmp_unpack(
+            (uint8_t*)packet->icmphdr + sizeof(struct icmphdr),
+            packet->icmp_len - sizeof(struct icmphdr),
+            &packet->inner_icmp_len
+        );
+        packet->inner_iphdr =
+            ip_unpack((uint8_t*)packet->inner_icmphdr, &packet->inner_ip_len);
+    }
+
     if (verif_its_me(packet) != true || verif_integrity(packet) != true)
     {
         return;
     }
-    add_recv(stats, elapsed);
 
-    print_rep(*packet, addr, elapsed);
+    uint16_t seq = ntohs(packet->icmphdr->un.echo.sequence);
+    size_t   idx = seq % __PING_RECV_BUFF__;
+
+    bool is_duplicate = (ping->recv[idx] == 0);
+    if (is_duplicate)
+        ping->stats.dup++;
+
+    refresh_stats(&ping->stats, elapsed, !is_duplicate);
+
+    print_rep(ping, packet, elapsed);
+
+    ping->recv[htons(packet->icmphdr->un.echo.sequence) % __PING_RECV_BUFF__] =
+        0;
 }
 
 void loop(t_ping* ping, t_param* params)
@@ -93,8 +115,7 @@ void loop(t_ping* ping, t_param* params)
         int n = select(ping->sockfd + 1, &read_fds, NULL, NULL, &resp_time);
         if (n < 0)
         {
-            perror("select");
-            break;
+            continue;
         }
 
         if (params->optarg & OPT_TIMEOUT &&
@@ -113,18 +134,12 @@ void loop(t_ping* ping, t_param* params)
             }
             clock_gettime(CLOCK_MONOTONIC, &time.trecv);
             elapsed = elapsed_time(&time);
-            pr_packet(&packet, &ping->stats, elapsed, &ping->addr);
-            ping->recv[packet.icmphdr->un.echo.sequence % __PING_RECV_BUFF__] =
-                0;
+            pr_packet(ping, &packet, elapsed);
         }
         if (params->optarg & OPT_COUNT &&
             ping->stats.recv >= (size_t)params->count)
         {
             g_is_running = 0;
-        }
-        if (params->optarg & OPT_VERBOSE)
-        {
-            pr_icmp(&packet);
         }
     }
 }
@@ -194,7 +209,7 @@ int main(int ac, char** av)
     parse_arg(ac, av, &params);
 
     init_ping(&ping, &params);
-    print_header(params.addr, &ping.addr.sin_addr);
+    print_header(&params, &ping.addr.sin_addr);
     loop(&ping, &params);
     print_footer(&ping.stats, &ping.addr.sin_addr);
     return 0;

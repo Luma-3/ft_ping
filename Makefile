@@ -39,3 +39,10 @@ fclean: clean
 	rm -f $(NAME)
 
 re: fclean all
+
+docker:
+	docker-compose up --build -d
+
+docker-stop:
+	docker-compose down
+
