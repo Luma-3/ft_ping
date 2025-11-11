@@ -39,4 +39,6 @@ int verif_integrity(packet_t* packet);
 
 int verif_its_me(packet_t* packet);
 
+void dump_inner_packet(struct iphdr* iphdr, struct icmphdr* icmphdr);
+
 #endif // !_PACKET_H

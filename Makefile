@@ -46,3 +46,5 @@ docker:
 docker-stop:
 	docker-compose down
 
+docker-re : docker-stop docker
+

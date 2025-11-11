@@ -46,17 +46,32 @@ void refresh_stats(t_stats* stats, double elapsed_time, bool recv)
     stats->stddev = sqrt(stats->M2 / (stats->recv - 1));
 }
 
-void pr_packet(t_ping* ping, packet_t* packet, double elapsed)
+bool handle_duplicate(t_ping* ping, struct icmphdr* icmp)
 {
+    uint16_t seq          = ntohs(icmp->un.echo.sequence);
+    size_t   idx          = seq % __PING_RECV_BUFF__;
+    bool     is_duplicate = ping->recv[idx] == 0;
+
+    ping->recv[idx] = 0;
+    return is_duplicate;
+}
+
+void pr_packet(t_ping* ping, packet_t* packet, double elapsed, bool verbose)
+{
+    bool is_error = false;
+
     if (packet->icmphdr->type == ICMP_TIME_EXCEEDED ||
-        packet->icmphdr->type == ICMP_DEST_UNREACH ||
+        packet->icmphdr->type == ICMP_UNREACH ||
         packet->icmphdr->type == ICMP_REDIRECT)
     {
+        is_error = true;
+
         packet->inner_icmphdr = icmp_unpack(
             (uint8_t*)packet->icmphdr + sizeof(struct icmphdr),
             packet->icmp_len - sizeof(struct icmphdr),
             &packet->inner_icmp_len
         );
+
         packet->inner_iphdr =
             ip_unpack((uint8_t*)packet->inner_icmphdr, &packet->inner_ip_len);
     }
@@ -66,19 +81,13 @@ void pr_packet(t_ping* ping, packet_t* packet, double elapsed)
         return;
     }
 
-    uint16_t seq = ntohs(packet->icmphdr->un.echo.sequence);
-    size_t   idx = seq % __PING_RECV_BUFF__;
-
-    bool is_duplicate = (ping->recv[idx] == 0);
-    if (is_duplicate)
-        ping->stats.dup++;
+    bool is_duplicate = handle_duplicate(
+        ping, is_error ? packet->inner_icmphdr : packet->icmphdr
+    );
 
     refresh_stats(&ping->stats, elapsed, !is_duplicate);
 
-    print_rep(ping, packet, elapsed);
-
-    ping->recv[htons(packet->icmphdr->un.echo.sequence) % __PING_RECV_BUFF__] =
-        0;
+    print_rep(ping, packet, elapsed, verbose);
 }
 
 void loop(t_ping* ping, t_param* params)
@@ -134,7 +143,7 @@ void loop(t_ping* ping, t_param* params)
             }
             clock_gettime(CLOCK_MONOTONIC, &time.trecv);
             elapsed = elapsed_time(&time);
-            pr_packet(ping, &packet, elapsed);
+            pr_packet(ping, &packet, elapsed, params->optarg & OPT_VERBOSE);
         }
         if (params->optarg & OPT_COUNT &&
             ping->stats.recv >= (size_t)params->count)

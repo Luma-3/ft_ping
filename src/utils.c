@@ -16,13 +16,13 @@ double elapsed_time(struct s_time* time)
     return rtt_time;
 }
 
-void pr_icmp(packet_t* packet)
+void pr_icmp(packet_t* packet, bool verbose)
 {
     struct icmphdr* icmp = packet->icmphdr;
 
     switch (icmp->type)
     {
-    case ICMP_HOST_UNREACH:
+    case ICMP_UNREACH:
         printf("Destination Host Unreachable\n");
         break;
     case ICMP_TIME_EXCEEDED:
@@ -32,11 +32,16 @@ void pr_icmp(packet_t* packet)
         printf("Redirect (change route)\n");
         break;
     default:
+        printf("ICMP type %d code %d\n", icmp->type, icmp->code);
         break;
+    }
+    if (verbose)
+    {
+        dump_inner_packet(packet->inner_iphdr, packet->inner_icmphdr);
     }
 }
 
-void print_rep(t_ping* ping, packet_t* packet, double rtt_time)
+void print_rep(t_ping* ping, packet_t* packet, double rtt_time, bool verbose)
 {
     printf(
         "%li bytes from %s: ", packet->icmp_len, inet_ntoa(ping->addr.sin_addr)
@@ -52,7 +57,7 @@ void print_rep(t_ping* ping, packet_t* packet, double rtt_time)
     }
     else
     {
-        pr_icmp(packet);
+        pr_icmp(packet, verbose);
         return;
     }
     if (ping->recv
@@ -93,13 +98,11 @@ void print_footer(t_stats* stats, struct in_addr* addr)
     {
         printf(" +%li duplicates,", stats->dup);
     }
-    if (stats->err != 0)
-    {
-        printf(" +%li errors,", stats->err);
-    }
     printf(
         " %li%% packet loss\n",
-        stats->send == 0 ? 0 : ((stats->send - stats->recv) / stats->send * 100)
+        stats->send == 0
+            ? 0
+            : (long)(((stats->send - stats->recv) / (double)stats->send) * 100)
     );
     if (stats->recv == 0)
         return;

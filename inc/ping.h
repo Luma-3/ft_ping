@@ -43,7 +43,6 @@ typedef struct s_stats
     double M2;
     double stddev;
     long   dup;
-    long   err;
 } t_stats;
 
 typedef struct s_ping
@@ -58,7 +57,7 @@ typedef struct s_ping
 void parse_arg(int ac, char** av, t_param* params);
 
 double elapsed_time(struct s_time* time);
-void   print_rep(t_ping* ping, packet_t* packet, double rtt_time);
+void   print_rep(t_ping* ping, packet_t* packet, double rtt_time, bool verbose);
 void   print_header(t_param* param, struct in_addr* addr);
 void   print_footer(t_stats* stats, struct in_addr* addr);
 

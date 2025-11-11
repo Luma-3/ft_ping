@@ -1,5 +1,6 @@
 #include "packet.h"
 
+#include <arpa/inet.h>
 #include <netinet/in.h>
 #include <netinet/ip.h>
 #include <netinet/ip_icmp.h>
@@ -87,4 +88,44 @@ int verif_its_me(packet_t* packet)
         return (packet->inner_icmphdr->un.echo.id == htons(getpid() & 0xFFFF));
     }
     return (packet->icmphdr->un.echo.id == htons(getpid() & 0xFFFF));
+}
+
+void dump_inner_packet(struct iphdr* iphdr, struct icmphdr* icmphdr)
+{
+    printf("IP Hdr Dump:\n");
+    uint8_t* ptr = (uint8_t*)iphdr;
+    for (unsigned long i = 0; i < sizeof(struct iphdr) + sizeof(struct icmphdr);
+         ++i)
+    {
+        printf("%02x%s", *((unsigned char*)ptr + i), (i % 2) ? " " : "");
+    }
+    printf("\n");
+
+    printf(
+        "Vr HL TOS  Len   ID Flg  off TTL Pro  cks      Src      Dst     Data\n"
+    );
+    printf(
+        " %1x  %1x  %02x %04x %04x   %1x %04x  %02x  %02x %04x %s  %s\n",
+        iphdr->version,
+        iphdr->ihl,
+        iphdr->tos,
+        ntohs(iphdr->tot_len),
+        ntohs(iphdr->id),
+        (ntohs(iphdr->frag_off) & 0xE000) >> 13,
+        (ntohs(iphdr->frag_off) & 0x1FFF),
+        iphdr->ttl,
+        iphdr->protocol,
+        ntohs(iphdr->check),
+        inet_ntoa(*(struct in_addr*)&iphdr->saddr),
+        inet_ntoa(*(struct in_addr*)&iphdr->daddr)
+    );
+
+    printf(
+        "ICMP: type %d, code %d, size %lu, id 0x%04x, seq 0x%04x\n",
+        icmphdr->type,
+        icmphdr->code,
+        sizeof(struct icmphdr),
+        ntohs(icmphdr->un.echo.id),
+        ntohs(icmphdr->un.echo.sequence)
+    );
 }
