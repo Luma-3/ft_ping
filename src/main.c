@@ -49,7 +49,7 @@ void refresh_stats(t_stats* stats, double elapsed_time, bool recv)
 bool handle_duplicate(t_ping* ping, struct icmphdr* icmp)
 {
     uint16_t seq          = ntohs(icmp->un.echo.sequence);
-    size_t   idx          = seq % __PING_RECV_BUFF__;
+    size_t   idx          = seq % PING_RECV_BUFF;
     bool     is_duplicate = ping->recv[idx] == 0;
 
     ping->recv[idx] = 0;
@@ -97,7 +97,7 @@ void loop(t_ping* ping, t_param* params)
     fd_set         read_fds;
     packet_t       packet;
     double         elapsed;
-    uint8_t        buff[1024];
+    uint8_t        buff[MAX_PACKET_SIZE];
     struct s_time  time;
     struct timeval resp_time, now, last, start_time, intervl;
 
@@ -107,7 +107,7 @@ void loop(t_ping* ping, t_param* params)
     gettimeofday(&start_time, NULL);
     gettimeofday(&last, NULL);
 
-    send_packet(ping, &time);
+    send_packet(ping, &time, params->size);
 
     while (g_is_running)
     {
@@ -118,7 +118,7 @@ void loop(t_ping* ping, t_param* params)
         if (time_sub(now, last).tv_sec >= intervl.tv_sec)
         {
             gettimeofday(&last, NULL);
-            send_packet(ping, &time);
+            send_packet(ping, &time, params->size);
         }
 
         resp_time = time_sub(time_add(last, intervl), now);
@@ -138,7 +138,6 @@ void loop(t_ping* ping, t_param* params)
         if (n == 1)
         {
             ssize_t ret = recv_packet(ping->sockfd, buff, &packet);
-            printf("recv_packet returned %zd\n", ret);
             if (ret < 0)
             {
                 perror("recv_packet");
@@ -221,7 +220,7 @@ int main(int ac, char** av)
     parse_arg(ac, av, &params);
 
     init_ping(&ping, &params);
-    print_header(&params, &ping.addr.sin_addr);
+    print_header(&params, &ping.addr.sin_addr, params.size);
     loop(&ping, &params);
     print_footer(&ping.stats, &ping.addr.sin_addr);
     return 0;

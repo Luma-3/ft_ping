@@ -34,13 +34,11 @@ u_int16_t checksum(u_int16_t* ptr, size_t len)
     return ((u_int16_t)~sum);
 }
 
-void icmp_pack(ssize_t seq, u_int8_t* buff, char* data)
+void icmp_pack(ssize_t seq, u_int8_t* buff, char* data, int payload_size)
 {
-    (void)data;
     struct icmphdr* hdr = (struct icmphdr*)buff;
-    char            data2[PAYLOAD_SIZE];
 
-    memset(data2, 42, PAYLOAD_SIZE);
+    memset(data, 42, payload_size);
     ;
     hdr->type             = ICMP_ECHO;
     hdr->code             = 0;
@@ -48,9 +46,9 @@ void icmp_pack(ssize_t seq, u_int8_t* buff, char* data)
     hdr->un.echo.id       = htons(getpid() & 0xFFFF);
     hdr->un.echo.sequence = htons(seq);
 
-    memcpy(buff + sizeof(struct icmphdr), data2, PAYLOAD_SIZE);
+    memcpy(buff + sizeof(struct icmphdr), data, payload_size);
     hdr->checksum =
-        checksum((u_int16_t*)buff, sizeof(struct icmphdr) + PAYLOAD_SIZE);
+        checksum((u_int16_t*)buff, sizeof(struct icmphdr) + payload_size);
 }
 
 struct icmphdr* icmp_unpack(void* buff, size_t buff_len, size_t* len)

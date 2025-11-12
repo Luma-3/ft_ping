@@ -73,13 +73,13 @@ void print_rep(
     printf("\n");
 }
 
-void print_header(t_param* param, struct in_addr* addr)
+void print_header(t_param* param, struct in_addr* addr, int payload_size)
 {
     printf(
         "PING %s (%s) %i data bytes",
         param->addr,
         inet_ntoa(*addr),
-        PAYLOAD_SIZE
+        payload_size
     );
     if (param->optarg & OPT_VERBOSE)
     {

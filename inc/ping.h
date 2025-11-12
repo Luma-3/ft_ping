@@ -8,16 +8,21 @@
 
 #include "packet.h"
 
-#define MIN(X, Y)          (((X) < (Y)) ? (X) : (Y))
-#define MAX(X, Y)          (((X) > (Y)) ? (X) : (Y))
-#define __PING_RECV_BUFF__ 1024
+#define MIN(X, Y) (((X) < (Y)) ? (X) : (Y))
+#define MAX(X, Y) (((X) > (Y)) ? (X) : (Y))
+
+#define PING_RECV_BUFF 1024
+
+#define MAX_PAYLOAD_SIZE 65535 - sizeof(struct icmphdr) - sizeof(struct iphdr)
+#define MAX_PACKET_SIZE  65535
+#define PAYLOAD_SIZE     56 // Default payload size
 
 typedef struct s_param
 {
     int     optarg;
     char*   addr;
     int     timeout;
-    int     linger;
+    int     size;
     int     interval;
     int     count;
     uint8_t ttl;
@@ -51,7 +56,7 @@ typedef struct s_ping
     t_stats            stats;
     struct sockaddr_in addr;
     long               seq;
-    int                recv[__PING_RECV_BUFF__];
+    int                recv[PING_RECV_BUFF];
 } t_ping;
 
 void parse_arg(int ac, char** av, t_param* params);
@@ -64,7 +69,8 @@ void   print_rep(
       bool      verbose,
       bool      is_duplicate
   );
-void print_header(t_param* param, struct in_addr* addr);
+
+void print_header(t_param* param, struct in_addr* addr, int payload_size);
 void print_footer(t_stats* stats, struct in_addr* addr);
 
 struct timeval time_sub(struct timeval a, struct timeval b);

@@ -19,7 +19,8 @@ void usage()
         "packet\n"
         "    -c, --count=N            stop after sending N packets\n"
         "    -w, --timeout=N          stop after N seconds\n"
-        "    -W, --linger=N           N secondes to wait for response\n"
+        "    -s, --size=N             specify N as number of data bytes to be "
+        "sent\n"
         "    -t, --ttl=N              specify N as time-to-live\n"
     );
 }
@@ -30,7 +31,7 @@ static struct option longopt[] = {
     {"interval", required_argument, NULL, 'i'},
     {"count", required_argument, NULL, 'c'},
     {"timeout", required_argument, NULL, 'w'},
-    {"linger", required_argument, NULL, 'W'},
+    {"size", required_argument, NULL, 's'},
     {"ttl", required_argument, NULL, 't'},
     {0, 0, 0, 0}
 };
@@ -41,10 +42,10 @@ void parse_arg(int ac, char** av, t_param* params)
 
     params->count    = -1;
     params->interval = 1;
-    params->timeout  = 5;
-    params->linger   = 5;
+    params->timeout  = -1;
+    params->size     = PAYLOAD_SIZE;
 
-    while ((opt = getopt_long(ac, av, "?vi:c:w:W:t:", longopt, NULL)) != -1)
+    while ((opt = getopt_long(ac, av, "?vi:c:w:s:t:", longopt, NULL)) != -1)
     {
         switch (opt)
         {
@@ -91,15 +92,13 @@ void parse_arg(int ac, char** av, t_param* params)
                 exit(EXIT_FAILURE);
             }
             break;
-        case 'W':
+        case 's':
             params->optarg |= OPT_LINGER;
-            params->linger = atoi(optarg);
-            if (params->linger <= 0)
+            params->size = atoi(optarg);
+            if (params->size <= 0 || params->size > MAX_PAYLOAD_SIZE)
             {
                 fprintf(
-                    stderr,
-                    "ft_ping: usage error: Invalid linger '%s'\n",
-                    optarg
+                    stderr, "ft_ping: usage error: Invalid size '%s'\n", optarg
                 );
                 exit(EXIT_FAILURE);
             }
