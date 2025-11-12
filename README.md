@@ -62,7 +62,7 @@ sudo ./ft_ping -c 5 -i 1 -v google.com
 | `-i`, `--interval` | N | Attend N secondes entre chaque paquet |
 | `-c`, `--count` | N | S'arrête après N paquets envoyés |
 | `-w`, `--timeout` | N | S'arrête après N secondes |
-| `-W`, `--linger` | N | Attend N secondes pour la réponse |
+| `-s`, `--linger` | N | Définit la taille du payload des paquets |
 | `-t`, `--ttl` | N | Définit le Time-To-Live à N |
 
 ### Exemples
@@ -138,7 +138,7 @@ round-trip min/avg/max/stddev = 13.892/14.094/14.235/0.143 ms
 
 ## 🛠️ Détails techniques
 
-- **Langage** : C (94.2%)
+- **Langage** : C
 - **Raw Sockets** : Communication ICMP bas niveau
 - **Protocoles** : IPv4, ICMP
 - **Normes** : [RFC 792 (ICMP)](https://www.rfc-editor.org/rfc/rfc792.html), [RFC 791 (IP)](https://www.rfc-editor.org/rfc/rfc791.html)
