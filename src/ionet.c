@@ -53,7 +53,7 @@ ssize_t recv_packet(int fd, uint8_t* buff, packet_t* packet)
     ssize_t pack_len =
         sizeof(struct iphdr) + sizeof(struct icmphdr) + PAYLOAD_SIZE;
 
-    memset(buff, 0, pack_len);
+    memset(buff, 'a', pack_len);
     memset(packet, 0, sizeof(*packet));
 
     nb_bytes = recvfrom(fd, buff, pack_len, 0, NULL, NULL);

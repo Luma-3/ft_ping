@@ -66,14 +66,16 @@ void pr_packet(t_ping* ping, packet_t* packet, double elapsed, bool verbose)
     {
         is_error = true;
 
-        packet->inner_icmphdr = icmp_unpack(
+        packet->inner_iphdr = ip_unpack(
             (uint8_t*)packet->icmphdr + sizeof(struct icmphdr),
-            packet->icmp_len - sizeof(struct icmphdr),
-            &packet->inner_icmp_len
+            &packet->inner_ip_len
         );
 
-        packet->inner_iphdr =
-            ip_unpack((uint8_t*)packet->inner_icmphdr, &packet->inner_ip_len);
+        packet->inner_icmphdr = icmp_unpack(
+            (uint8_t*)packet->inner_iphdr,
+            packet->pack_len - sizeof(struct icmphdr) - packet->inner_ip_len,
+            &packet->inner_icmp_len
+        );
     }
 
     if (verif_its_me(packet) != true || verif_integrity(packet) != true)
@@ -87,7 +89,7 @@ void pr_packet(t_ping* ping, packet_t* packet, double elapsed, bool verbose)
 
     refresh_stats(&ping->stats, elapsed, !is_duplicate);
 
-    print_rep(ping, packet, elapsed, verbose);
+    print_rep(ping, packet, elapsed, verbose, is_duplicate);
 }
 
 void loop(t_ping* ping, t_param* params)
@@ -136,6 +138,7 @@ void loop(t_ping* ping, t_param* params)
         if (n == 1)
         {
             ssize_t ret = recv_packet(ping->sockfd, buff, &packet);
+            printf("recv_packet returned %zd\n", ret);
             if (ret < 0)
             {
                 perror("recv_packet");

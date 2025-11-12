@@ -40,8 +40,8 @@ void icmp_pack(ssize_t seq, u_int8_t* buff, char* data)
     struct icmphdr* hdr = (struct icmphdr*)buff;
     char            data2[PAYLOAD_SIZE];
 
-    memset(data2, 0, PAYLOAD_SIZE);
-    // memset(data2, 'A', PAYLOAD_SIZE - 1);;
+    memset(data2, 42, PAYLOAD_SIZE);
+    ;
     hdr->type             = ICMP_ECHO;
     hdr->code             = 0;
     hdr->checksum         = 0;
@@ -90,20 +90,36 @@ int verif_its_me(packet_t* packet)
     return (packet->icmphdr->un.echo.id == htons(getpid() & 0xFFFF));
 }
 
-void dump_inner_packet(struct iphdr* iphdr, struct icmphdr* icmphdr)
+void dump_icmp(packet_t* packet)
+{
+    struct icmphdr* icmphdr = packet->inner_icmphdr;
+
+    printf(
+        "ICMP: type %d, code %d, size %lu, id 0x%04x, seq 0x%04x\n",
+        icmphdr->type,
+        icmphdr->code,
+        packet->icmp_len,
+        ntohs(icmphdr->un.echo.id),
+        ntohs(icmphdr->un.echo.sequence)
+    );
+}
+
+void dump_ip(struct iphdr* iphdr)
 {
     printf("IP Hdr Dump:\n");
     uint8_t* ptr = (uint8_t*)iphdr;
-    for (unsigned long i = 0; i < sizeof(struct iphdr) + sizeof(struct icmphdr);
-         ++i)
+    for (unsigned long i = 0; i < sizeof(struct iphdr); ++i)
     {
         printf("%02x%s", *((unsigned char*)ptr + i), (i % 2) ? " " : "");
     }
     printf("\n");
 
-    printf(
-        "Vr HL TOS  Len   ID Flg  off TTL Pro  cks      Src      Dst     Data\n"
-    );
+    char src_str[INET_ADDRSTRLEN];
+    char dst_str[INET_ADDRSTRLEN];
+    inet_ntop(AF_INET, &iphdr->saddr, src_str, INET_ADDRSTRLEN);
+    inet_ntop(AF_INET, &iphdr->daddr, dst_str, INET_ADDRSTRLEN);
+
+    printf("Vr HL TOS  Len   ID Flg  off TTL Pro  cks      Src      Dst\n");
     printf(
         " %1x  %1x  %02x %04x %04x   %1x %04x  %02x  %02x %04x %s  %s\n",
         iphdr->version,
@@ -116,16 +132,13 @@ void dump_inner_packet(struct iphdr* iphdr, struct icmphdr* icmphdr)
         iphdr->ttl,
         iphdr->protocol,
         ntohs(iphdr->check),
-        inet_ntoa(*(struct in_addr*)&iphdr->saddr),
-        inet_ntoa(*(struct in_addr*)&iphdr->daddr)
+        src_str,
+        dst_str
     );
+}
 
-    printf(
-        "ICMP: type %d, code %d, size %lu, id 0x%04x, seq 0x%04x\n",
-        icmphdr->type,
-        icmphdr->code,
-        sizeof(struct icmphdr),
-        ntohs(icmphdr->un.echo.id),
-        ntohs(icmphdr->un.echo.sequence)
-    );
+void dump_packet(packet_t* packet)
+{
+    dump_ip(packet->inner_iphdr);
+    dump_icmp(packet);
 }

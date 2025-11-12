@@ -37,11 +37,17 @@ void pr_icmp(packet_t* packet, bool verbose)
     }
     if (verbose)
     {
-        dump_inner_packet(packet->inner_iphdr, packet->inner_icmphdr);
+        dump_packet(packet);
     }
 }
 
-void print_rep(t_ping* ping, packet_t* packet, double rtt_time, bool verbose)
+void print_rep(
+    t_ping*   ping,
+    packet_t* packet,
+    double    rtt_time,
+    bool      verbose,
+    bool      is_duplicate
+)
 {
     printf(
         "%li bytes from %s: ", packet->icmp_len, inet_ntoa(ping->addr.sin_addr)
@@ -60,9 +66,7 @@ void print_rep(t_ping* ping, packet_t* packet, double rtt_time, bool verbose)
         pr_icmp(packet, verbose);
         return;
     }
-    if (ping->recv
-            [htons(packet->icmphdr->un.echo.sequence) % __PING_RECV_BUFF__] ==
-        0)
+    if (is_duplicate)
     {
         printf(" (DUP!)");
     }

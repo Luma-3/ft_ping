@@ -57,9 +57,15 @@ typedef struct s_ping
 void parse_arg(int ac, char** av, t_param* params);
 
 double elapsed_time(struct s_time* time);
-void   print_rep(t_ping* ping, packet_t* packet, double rtt_time, bool verbose);
-void   print_header(t_param* param, struct in_addr* addr);
-void   print_footer(t_stats* stats, struct in_addr* addr);
+void   print_rep(
+      t_ping*   ping,
+      packet_t* packet,
+      double    rtt_time,
+      bool      verbose,
+      bool      is_duplicate
+  );
+void print_header(t_param* param, struct in_addr* addr);
+void print_footer(t_stats* stats, struct in_addr* addr);
 
 struct timeval time_sub(struct timeval a, struct timeval b);
 struct timeval time_add(struct timeval a, struct timeval b);
