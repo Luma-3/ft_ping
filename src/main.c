@@ -43,7 +43,8 @@ void refresh_stats(t_stats* stats, double elapsed_time, bool recv)
 
     stats->avg += delta / stats->recv;
     stats->M2 += delta * (elapsed_time - stats->avg);
-    stats->stddev = sqrt(stats->M2 / (stats->recv - 1));
+    stats->stddev =
+        stats->recv - 1 != 0 ? sqrt(stats->M2 / (stats->recv - 1)) : 0;
 }
 
 bool handle_duplicate(t_ping* ping, struct icmphdr* icmp)
@@ -51,6 +52,9 @@ bool handle_duplicate(t_ping* ping, struct icmphdr* icmp)
     uint16_t seq          = ntohs(icmp->un.echo.sequence);
     size_t   idx          = seq % PING_RECV_BUFF;
     bool     is_duplicate = ping->recv[idx] == 0;
+
+    if (is_duplicate)
+        ping->stats.dup++;
 
     ping->recv[idx] = 0;
     return is_duplicate;
@@ -87,7 +91,7 @@ void pr_packet(t_ping* ping, packet_t* packet, double elapsed, bool verbose)
         ping, is_error ? packet->inner_icmphdr : packet->icmphdr
     );
 
-    refresh_stats(&ping->stats, elapsed, !is_duplicate);
+    refresh_stats(&ping->stats, elapsed, is_error ? false : !is_duplicate);
 
     print_rep(ping, packet, elapsed, verbose, is_duplicate);
 }

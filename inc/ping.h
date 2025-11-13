@@ -22,7 +22,7 @@ typedef struct s_param
     int     optarg;
     char*   addr;
     int     timeout;
-    int     size;
+    size_t  size;
     int     interval;
     int     count;
     uint8_t ttl;
