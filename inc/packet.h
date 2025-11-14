@@ -29,7 +29,7 @@ struct s_time
 
 u_int16_t checksum(u_int16_t* ptr, size_t len);
 
-void icmp_pack(ssize_t seq, u_int8_t* buff, char* data, int payload_size);
+void            icmp_pack(ssize_t seq, u_int8_t* buff, int payload_size);
 struct icmphdr* icmp_unpack(void* buff, size_t buff_len, size_t* len);
 struct iphdr*   ip_unpack(void* buff, size_t* len);
 

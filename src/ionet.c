@@ -7,7 +7,6 @@
 #include <netinet/ip_icmp.h>
 #include <stdbool.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -21,27 +20,17 @@ extern volatile int g_is_running;
 
 void send_packet(t_ping* ping, struct s_time* time, int payload_size)
 {
-    uint8_t icmp_buff[sizeof(struct icmphdr) + MAX_PAYLOAD_SIZE];
-    char*   data = malloc(payload_size);
-    if (!data)
-    {
-        perror("malloc");
-        return;
-    }
-
-    memset(icmp_buff, 0, sizeof(struct icmphdr) + MAX_PAYLOAD_SIZE);
 
     memset(&time->tsend, 0, sizeof(time->tsend));
     memset(&time->trecv, 0, sizeof(time->trecv));
 
     clock_gettime(CLOCK_MONOTONIC, &time->tsend);
 
-    icmp_pack(ping->seq, icmp_buff, data, payload_size);
-    free(data);
+    icmp_pack(ping->seq, ping->buff, payload_size);
 
     if (sendto(
             ping->sockfd,
-            icmp_buff,
+            ping->buff,
             sizeof(struct icmphdr) + payload_size,
             0,
             (struct sockaddr*)&ping->addr,
@@ -55,21 +44,22 @@ void send_packet(t_ping* ping, struct s_time* time, int payload_size)
     ping->seq++;
 }
 
-ssize_t recv_packet(int fd, uint8_t* buff, packet_t* packet)
+ssize_t recv_packet(t_ping* ping, packet_t* packet)
 {
     ssize_t nb_bytes = 0;
 
-    memset(buff, 0, MAX_PACKET_SIZE);
+    memset(ping->buff, 0, ping->buff_size);
     memset(packet, 0, sizeof(*packet));
 
-    nb_bytes = recvfrom(fd, buff, MAX_PACKET_SIZE, 0, NULL, NULL);
+    nb_bytes =
+        recvfrom(ping->sockfd, ping->buff, ping->buff_size, 0, NULL, NULL);
 
     if (nb_bytes >= 0)
     {
         packet->pack_len = nb_bytes;
         packet->icmphdr =
-            icmp_unpack(buff, packet->pack_len, &packet->icmp_len);
-        packet->iphdr = ip_unpack(buff, &packet->ip_len);
+            icmp_unpack(ping->buff, packet->pack_len, &packet->icmp_len);
+        packet->iphdr = ip_unpack(ping->buff, &packet->ip_len);
     }
     return nb_bytes;
 }

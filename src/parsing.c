@@ -106,7 +106,7 @@ void parse_arg(int ac, char** av, t_param* params)
         case 't':
             params->optarg |= OPT_TTL;
             params->ttl = atoi(optarg);
-            if (params->ttl == 0)
+            if (params->ttl <= 0)
             {
                 fprintf(
                     stderr, "ft_ping: usage error: Invalid ttl '%s'\n", optarg

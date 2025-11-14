@@ -88,6 +88,7 @@ void print_header(t_param* param, struct in_addr* addr, int payload_size)
     }
     printf("\n");
 }
+
 void print_footer(t_stats* stats, struct in_addr* addr)
 {
     printf(

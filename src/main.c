@@ -101,7 +101,6 @@ void loop(t_ping* ping, t_param* params)
     fd_set         read_fds;
     packet_t       packet;
     double         elapsed;
-    uint8_t        buff[MAX_PACKET_SIZE];
     struct s_time  time;
     struct timeval resp_time, now, last, start_time, intervl;
 
@@ -130,7 +129,8 @@ void loop(t_ping* ping, t_param* params)
         int n = select(ping->sockfd + 1, &read_fds, NULL, NULL, &resp_time);
         if (n < 0)
         {
-            continue;
+            perror("select");
+            break;
         }
 
         if (params->optarg & OPT_TIMEOUT &&
@@ -141,7 +141,7 @@ void loop(t_ping* ping, t_param* params)
 
         if (n == 1)
         {
-            ssize_t ret = recv_packet(ping->sockfd, buff, &packet);
+            ssize_t ret = recv_packet(ping, &packet);
             if (ret < 0)
             {
                 perror("recv_packet");
@@ -158,10 +158,6 @@ void loop(t_ping* ping, t_param* params)
         }
     }
 }
-
-/**
- * pre: init variables for ping, socket, sock opt and host.
- */
 
 void init_ping(t_ping* ping, t_param* params)
 {
@@ -200,14 +196,18 @@ void init_ping(t_ping* ping, t_param* params)
     }
 
     signal(SIGINT, handle_sigint);
+
+    ping->buff_size =
+        params->size + sizeof(struct icmphdr) + sizeof(struct iphdr);
+    ping->buff = malloc(ping->buff_size);
+    if (ping->buff == NULL)
+    {
+        perror("malloc");
+        close(ping->sockfd);
+        exit(1);
+    }
 }
 
-/**
- * pre: declare global struct for prog, call, verification and start
- * pipeline, finaly loop
- *
- *
- */
 int main(int ac, char** av)
 {
     t_param params;
@@ -227,5 +227,7 @@ int main(int ac, char** av)
     print_header(&params, &ping.addr.sin_addr, params.size);
     loop(&ping, &params);
     print_footer(&ping.stats, &ping.addr.sin_addr);
+    free(ping.buff);
+    close(ping.sockfd);
     return 0;
 }
