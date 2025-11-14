@@ -76,7 +76,7 @@ int resolve_host(char* addr_str, struct sockaddr_in* addr)
     err = getaddrinfo(addr_str, NULL, &hints, &result);
     if (err != 0)
     {
-        fprintf(stderr, "ping: %s: %s", addr_str, gai_strerror(err));
+        fprintf(stderr, "ping: %s: %s\n", addr_str, gai_strerror(err));
         return 1;
     }
 
