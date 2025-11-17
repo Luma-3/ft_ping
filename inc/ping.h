@@ -13,8 +13,8 @@
 
 #define PING_RECV_BUFF 1024
 
-#define MAX_PAYLOAD_SIZE 65535 - sizeof(struct icmphdr) - sizeof(struct iphdr)
-#define MAX_PACKET_SIZE  65535
+#define MAX_PAYLOAD_SIZE 21000 - sizeof(struct icmphdr) - sizeof(struct iphdr)
+#define MAX_PACKET_SIZE  21000
 #define PAYLOAD_SIZE     56 // Default payload size
 
 typedef struct s_param
