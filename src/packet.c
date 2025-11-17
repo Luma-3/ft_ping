@@ -66,6 +66,10 @@ struct iphdr* ip_unpack(void* buff, size_t* len)
 
 int verif_integrity(packet_t* packet)
 {
+    if (packet->icmphdr->type == ICMP_ECHO)
+    {
+        return 0;
+    }
     int icmp_save_check = packet->icmphdr->checksum;
 
     packet->icmphdr->checksum = 0;
