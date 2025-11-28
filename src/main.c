@@ -1,6 +1,8 @@
 #include <arpa/inet.h>
+#include <asm-generic/errno-base.h>
 #include <bits/time.h>
 #include <bits/types/struct_timeval.h>
+#include <errno.h>
 #include <math.h>
 #include <netdb.h>
 #include <netinet/in.h>
@@ -127,7 +129,7 @@ void loop(t_ping* ping, t_param* params)
         resp_time = time_sub(time_add(last, intervl), now);
 
         int n = select(ping->sockfd + 1, &read_fds, NULL, NULL, &resp_time);
-        if (n < 0)
+        if (n < 0 && errno != EINTR)
         {
             perror("select");
             break;
